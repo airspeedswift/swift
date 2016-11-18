@@ -625,16 +625,8 @@ extension Sequence {
   ///
   /// - Returns: An array containing the elements of this sequence in
   ///   reverse order.
-  public func reversed() -> [${GElement}] {
-    // FIXME(performance): optimize to 1 pass?  But Array(self) can be
-    // optimized to a memcpy() sometimes.  Those cases are usually collections,
-    // though.
-    var result = Array(self)
-    let count = result.count
-    for i in 0..<count/2 {
-      swap(&result[i], &result[count - i - 1])
-    }
-    return result
+  public func reversed() -> ReversedRandomAccessCollection<[${GElement}]> {
+    return Array(self).reversed()
   }
 }
 

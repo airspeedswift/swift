@@ -557,9 +557,9 @@ func callStaticContains(
   return set.contains(element)
 }
 
-func callGenericContains<
-  S : Sequence where S.Iterator.Element : Equatable
->(_ sequence: S, _ element: S.Iterator.Element) -> Bool {
+func callGenericContains<S : Sequence>(
+  _ sequence: S, _ element: S.Iterator.Element
+) -> Bool where S.Iterator.Element : Equatable {
   return sequence.contains(element)
 }
 
@@ -646,7 +646,7 @@ SequenceTypeTests.test("reverse/Sequence") {
     let s = MinimalSequence<OpaqueValue<Int>>(
       elements: test.sequence.map(OpaqueValue.init))
     var result = s.reversed()
-    expectType([OpaqueValue<Int>].self, &result)
+    expectType(ReversedRandomAccessCollection<[OpaqueValue<Int>]>.self, &result)
     expectEqual(
       test.expected, result.map { $0.value },
       stackTrace: SourceLocStack().with(test.loc))
@@ -967,7 +967,7 @@ SequenceTypeTests.test("dropLast/dispatch") {
 
 SequenceTypeTests.test("drop(while:)/dispatch") {
   var tester = SequenceLog.dispatchTester([OpaqueValue(1)])
-  tester.drop { _ in return false }
+  _ = tester.drop { _ in return false }
   expectCustomizable(tester, tester.log.dropWhile)
 }
 
@@ -987,7 +987,7 @@ SequenceTypeTests.test("prefix/dispatch") {
 
 SequenceTypeTests.test("prefix(while:)/dispatch") {
   var tester = SequenceLog.dispatchTester([OpaqueValue(1)])
-  tester.prefix { _ in return false }
+  _ = tester.prefix { _ in return false }
   expectCustomizable(tester, tester.log.prefixWhile)
 }
 
