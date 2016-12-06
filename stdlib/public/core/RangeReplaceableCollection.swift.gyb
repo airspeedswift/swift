@@ -1001,6 +1001,18 @@ extension RangeReplaceableCollection where Self : BidirectionalCollection {
     return remove(at: index(before: endIndex))
   }
 
+  /// Removes and returns the last element of the collection.
+  ///
+  /// - Returns: The last element of the collection if the collection is not empty;
+  ///   otherwise, `nil`.
+  ///
+  /// - Complexity: O(1)
+  /// - SeeAlso: `removeLast()`
+  public mutating func popLast() -> Iterator.Element? {
+    guard !isEmpty else { return nil }
+    return removeLast()
+  }
+
   /// Removes the specified number of elements from the end of the
   /// collection.
   ///
@@ -1054,6 +1066,18 @@ extension RangeReplaceableCollection
       return result
     }
     return remove(at: index(before: endIndex))
+  }
+
+  /// Removes and returns the last element of the collection.
+  ///
+  /// - Returns: The last element of the collection if the collection is not empty;
+  ///   otherwise, `nil`.
+  ///
+  /// - Complexity: O(1)
+  /// - SeeAlso: `removeLast()`
+  public mutating func popLast() -> Iterator.Element? {
+    guard !isEmpty else { return nil }
+    return removeLast()
   }
 
   /// Removes the specified number of elements from the end of the

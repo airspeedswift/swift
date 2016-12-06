@@ -2276,35 +2276,6 @@ extension Array {
 }
 #endif
 
-extension Array {
-  /// Removes and returns the last element of the array.
-  ///
-  /// - Returns: The last element of the array if the array is not empty;
-  ///   otherwise, `nil`.
-  ///
-  /// - Complexity: O(*n*) if the array is bridged, where *n* is the length
-  ///   of the array; otherwise, O(1).
-  /// - SeeAlso: `removeLast()`
-  public mutating func popLast() -> Element? {
-    guard !isEmpty else { return nil }
-    return removeLast()
-  }
-}
-
-extension ContiguousArray {
-  /// Removes and returns the last element of the array.
-  ///
-  /// - Returns: The last element of the array if the array is not empty;
-  ///   otherwise, `nil`.
-  ///
-  /// - Complexity: O(1)
-  /// - SeeAlso: `removeLast()`
-  public mutating func popLast() -> Element? {
-    guard !isEmpty else { return nil }
-    return removeLast()
-  }
-}
-
 extension ArraySlice {
   public // @testable
   init(_startIndex: Int) {
