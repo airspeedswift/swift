@@ -16,6 +16,8 @@ Protocol IndexableBase has been removed (deprecated)
 Protocol MutableIndexable has been removed (deprecated)
 Protocol RandomAccessIndexable has been removed (deprecated)
 Protocol RangeReplaceableIndexable has been removed (deprecated)
+Func Array.popLast() has been moved to Func RangeReplaceableCollection.popLast()
+Func ContiguousArray.popLast() has been moved to Func RangeReplaceableCollection.popLast()
 
 /* More DictionaryIndex / SetIndex */
 Var Dictionary.endIndex has declared type change from DictionaryIndex<Key, Value> to Dictionary<Key, Value>.Index
