@@ -146,6 +146,11 @@
 ///   equal to any normal floating-point value. Exceptional values need not
 ///   take part in the strict total order.
 public protocol Comparable : Equatable {
+  
+  /// Returns a ComparisonResult indicating whether the value of self
+  /// is in ascending, same or descending order with respect to other.
+  func compared(to other: Self) -> ComparisonResult
+  
   /// Returns a Boolean value indicating whether the value of the first
   /// argument is less than that of the second argument.
   ///
@@ -157,6 +162,18 @@ public protocol Comparable : Equatable {
   ///   - lhs: A value to compare.
   ///   - rhs: Another value to compare.
   static func < (lhs: Self, rhs: Self) -> Bool
+}
+
+extension Comparable {
+  public func compared(to other: Self) -> ComparisonResult {
+    if self ==  other {
+      return .orderedSame
+    } else if self <  other {
+      return .orderedAscending
+    } else {
+      return .orderedDescending
+    } 
+  }
 }
 
 /// Returns a Boolean value indicating whether the value of the first argument
