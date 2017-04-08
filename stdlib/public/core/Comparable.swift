@@ -176,6 +176,10 @@ extension Comparable {
   }
 }
 
+public func < <T: Comparable>(lhs: T, rhs: T) -> Bool {
+  return lhs.compared(to: rhs) == .orderedAscending
+}
+
 /// Returns a Boolean value indicating whether the value of the first argument
 /// is greater than that of the second argument.
 ///
