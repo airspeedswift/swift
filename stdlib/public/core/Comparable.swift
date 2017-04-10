@@ -149,7 +149,7 @@ public protocol Comparable : Equatable {
   
   /// Returns a ComparisonResult indicating whether the value of self
   /// is in ascending, same or descending order with respect to other.
-  func compared(to other: Self) -> ComparisonResult
+  func compare(_ other: Self) -> ComparisonResult
   
   /// Returns a Boolean value indicating whether the value of the first
   /// argument is less than that of the second argument.
@@ -165,7 +165,7 @@ public protocol Comparable : Equatable {
 }
 
 extension Comparable {
-  public func compared(to other: Self) -> ComparisonResult {
+  public func compare(_ other: Self) -> ComparisonResult {
     if self ==  other {
       return .orderedSame
     } else if self <  other {
@@ -177,7 +177,7 @@ extension Comparable {
 }
 
 public func < <T: Comparable>(lhs: T, rhs: T) -> Bool {
-  return lhs.compared(to: rhs) == .orderedAscending
+  return lhs.compare(rhs) == .orderedAscending
 }
 
 /// Returns a Boolean value indicating whether the value of the first argument
