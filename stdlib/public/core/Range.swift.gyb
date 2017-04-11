@@ -10,6 +10,24 @@
 //
 //===----------------------------------------------------------------------===//
 
+/// A type which can be used to slice a collection. A `RangeExpression` can
+/// convert itself to a `Range<Bound>` of indices within a given collection;
+/// the collection can then slice itself with that `Range`.
+public protocol RangeExpression {
+    associatedtype Bound: Comparable
+    /// Returns `self` expressed as a range of indices within `collection`.
+    ///
+    /// -Parameter collection: The collection `self` should be
+    ///                        relative to.
+    ///
+    /// -Returns: A `Range<Bound>` suitable for slicing `collection`.
+    ///           The return value is *not* guaranteed to be inside
+    ///           its bounds. Callers should apply the same preconditions
+    ///           to the return value as they would to a range provided
+    ///           directly by the user.
+    func relative<C: _Indexable>(to collection: C) -> Range<Bound> where C.Index == Bound
+}
+
 // FIXME(ABI)#55 (Statically Unavailable/Dynamically Available): remove this type, it creates an ABI burden
 // on the library.
 //
@@ -513,6 +531,19 @@ extension ${Self} {
   }
 }
 
+extension ${Self}: RangeExpression {
+  public func relative<C: _Indexable>(to collection: C) -> Range<Bound> where C.Index == Bound {
+    %   if 'Closed' in Self:
+        let adjustedBound = collection.index(after: self.upperBound)
+    %   else:
+        let adjustedBound = self.upperBound
+    %   end
+    return Range(
+      uncheckedBounds: (lower: lowerBound, upper: adjustedBound)
+    )
+  }
+}
+
 extension ${Self} : CustomStringConvertible {
   /// A textual representation of the range.
   public var description: String {
@@ -695,6 +726,71 @@ public func ..< <Bound>(
   _precondition(minimum <= maximum,
     "Can't form Range with upperBound < lowerBound")
   return CountableRange(uncheckedBounds: (lower: minimum, upper: maximum))
+}
+
+
+prefix operator ..<
+public struct PartialRangeUpTo<Bound: Comparable>: RangeExpression {
+  public init(_ upperBound: Bound) { self.upperBound = upperBound }
+  public let upperBound: Bound
+  public func relative<C: _Indexable>(to collection: C) -> Range<Bound> where C.Index == Bound {
+    return collection.startIndex..<self.upperBound
+  }
+  public func contains(_ element: Bound) -> Bool {
+    return element < upperBound
+  }
+}
+
+prefix operator ...
+public struct PartialRangeThrough<Bound: Comparable>: RangeExpression {
+  public init(_ upperBound: Bound) { self.upperBound = upperBound }
+  public let upperBound: Bound
+  public func relative<C: _Indexable>(to collection: C) -> Range<Bound> where C.Index == Bound {
+    return collection.startIndex..<collection.index(after: self.upperBound)
+  }
+  public func contains(_ element: Bound) -> Bool {
+    return element <= upperBound
+  }
+}
+
+postfix operator ...
+public struct PartialRangeFrom<Bound: Comparable>: RangeExpression {
+    public init(_ lowerBound: Bound) { self.lowerBound = lowerBound }
+    public let lowerBound: Bound
+    public func relative<C: _Indexable>(to collection: C) -> Range<Bound> where C.Index == Bound {
+      return self.lowerBound..<collection.endIndex
+    }
+    public func contains(_ element: Bound) -> Bool {
+      return lowerBound <= element
+    }
+}
+
+extension Comparable {
+    public static prefix func ..<(x: Self) -> PartialRangeUpTo<Self> {
+        return PartialRangeUpTo(x)
+    }
+    public static prefix func ...(x: Self) -> PartialRangeThrough<Self> {
+        return PartialRangeThrough(x)
+    }
+    public static postfix func ...(x: Self) -> PartialRangeFrom<Self> {
+        return PartialRangeFrom(x)
+    }
+}
+
+extension _Indexable {
+    public subscript<R: RangeExpression>(r: R) -> SubSequence where R.Bound == Index {
+        return self[r.relative(to: self)]
+    }
+}
+extension _MutableIndexable {
+    public subscript<R: RangeExpression>(r: R) -> SubSequence where R.Bound == Index {
+        get {
+            return self[r.relative(to: self)]
+        }
+        set {
+            self[r.relative(to: self)] = newValue
+        }
+    }
 }
 
 // swift-3-indexing-model: this is not really a proper rename
