@@ -1236,6 +1236,19 @@ public func += <
 public typealias RangeReplaceableCollectionType = RangeReplaceableCollection
 
 extension RangeReplaceableCollection {
+    public func filter(_ isIncluded: (Iterator.Element) throws -> Bool) rethrows -> Self {
+        var result = Self()
+        for element in self {
+            if try isIncluded(element) {
+                result.append(element)
+            }
+        }
+        return result
+    }
+}
+
+
+extension RangeReplaceableCollection {
   @available(*, unavailable, renamed: "replaceSubrange(_:with:)")
   public mutating func replaceRange<C>(
     _ subrange: Range<Index>,

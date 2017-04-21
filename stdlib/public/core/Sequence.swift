@@ -377,6 +377,8 @@ public protocol Sequence {
     _ transform: (Iterator.Element) throws -> T
   ) rethrows -> [T]
 
+
+  associatedtype Filtered
   /// Returns an array containing, in order, the elements of the sequence
   /// that satisfy the given predicate.
   ///
@@ -394,7 +396,7 @@ public protocol Sequence {
   /// - Returns: An array of the elements that `includeElement` allowed.
   func filter(
     _ isIncluded: (Iterator.Element) throws -> Bool
-  ) rethrows -> [Iterator.Element]
+  ) rethrows -> Filtered
 
   /// Calls the given closure on each element in the sequence in the same order
   /// as a `for`-`in` loop.
