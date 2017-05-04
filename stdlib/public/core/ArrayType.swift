@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-internal protocol _ArrayProtocol
+public protocol _ArrayProtocol
   : RangeReplaceableCollection,
     ExpressibleByArrayLiteral
 {

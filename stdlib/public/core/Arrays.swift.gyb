@@ -24,6 +24,33 @@
 //
 //===----------------------------------------------------------------------===//
 
+
+@_fixed_layout
+public struct _ArrayIterator<A: _ArrayProtocol>: IteratorProtocol, Sequence {
+  @_versioned
+  var _buffer: A._Buffer
+  @_versioned
+  var _position: Int
+  @_versioned
+  var _end: Int
+  @_inlineable
+  @_versioned
+  init(_array: A, start: Int, end: Int) {
+    self._buffer = a._buffer
+    _position = start
+    _end = end
+  }
+  @_inlineable
+  mutating public func next() -> A.Iterator.Element? {
+    guard _position != _end else { return nil }
+    defer { _position += 1 }
+    return _buffer[_position]
+  }
+}
+
+
+
+
 /// This type is used as a result of the _checkSubscript call to associate the
 /// call with the array access call it guards.
 @_fixed_layout
@@ -456,30 +483,6 @@ if True:
 }%
 
 
-@_fixed_layout
-public struct ${Self}Iterator<Element>: IteratorProtocol, Sequence {
-  @_versioned
-  var _buffer: ${Self}<Element>._Buffer
-  @_versioned
-  var _position: Int
-  @_versioned
-  var _end: Int
-  @_inlineable
-  @_versioned
-  init(_elements: ${Self}<Element>) {
-    self._buffer = _elements._buffer
-    _position = _elements.startIndex
-    _end = _elements.endIndex
-  }
-  @_inlineable
-  mutating public func next() -> Element? {
-    guard _position != _end else { return nil }
-    defer { _position += 1 }
-    return _buffer[_position]
-  }
-}
-
-
 ${SelfDocComment}
 @_fixed_layout
 public struct ${Self}<Element>
@@ -489,7 +492,7 @@ public struct ${Self}<Element>
 {
 
   public typealias Index = Int
-  public typealias Iterator = ${Self}Iterator<Element>
+  // public typealias Iterator = _ArrayIterator<${Self}>
 
 %if Self == 'ArraySlice':
   /// The position of the first element in a nonempty array.
@@ -566,8 +569,8 @@ public struct ${Self}<Element>
     return i - 1
   }
   
-  public func makeIterator() -> ${Self}Iterator<Element> {
-    return ${Self}Iterator(_elements: self)
+  public func makeIterator() -> _ArrayIterator<${Self}> {
+    return _ArrayIterator(_array: self, start: startIndex, end: endIndex)
   }
 
   @_inlineable
@@ -1057,7 +1060,7 @@ public func _deallocateUninitialized${Self}<Element>(
 }
 %end
 
-extension ${Self} : RangeReplaceableCollection, _ArrayProtocol {
+extension ${Self} :  _ArrayProtocol {
   /// Creates a new, empty array.
   ///
   /// This is equivalent to initializing with an empty array literal.
