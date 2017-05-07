@@ -247,7 +247,7 @@ public protocol RangeReplaceableCollection
   // FIXME(ABI)#165 (Recursive Protocol Constraints): should require `RangeReplaceableCollection`.
   associatedtype SubSequence : _RangeReplaceableIndexable /*: RangeReplaceableCollection*/
     = RangeReplaceableSlice<Self>
-
+    
   //===--- Fundamental Requirements ---------------------------------------===//
 
   /// Creates a new, empty collection.
@@ -804,6 +804,34 @@ extension RangeReplaceableCollection {
   /// - Parameter n: The requested number of elements to store.
   @_inlineable
   public mutating func reserveCapacity(_ n: IndexDistance) {}
+
+  /// Returns a new collection containing, in order, the elements of the 
+  /// collection that satisfy the given predicate.
+  ///
+  /// In this example, `filter` is used to include only names shorter than
+  /// five characters.
+  ///
+  ///     let cast: = ["Vivien", "Marlon", "Kim", "Karl"]
+  ///     let shortNames = cast.filter { $0.characters.count < 5 }
+  ///     print(shortNames)
+  ///     // Prints "["Kim", "Karl"]"
+  ///
+  /// - Parameter isIncluded: A closure that takes an element of the
+  ///   sequence as its argument and returns a Boolean value indicating
+  ///   whether the element should be included in the returned sequence.
+  /// - Returns: A collection of the elements that `includeElement` allowed.
+  @_inlineable
+  public func filter(
+    _ isIncluded: (Iterator.Element) throws -> Bool
+  ) rethrows -> Self {
+    var result = Self()
+    for element in self {
+      if try isIncluded(element) {
+          result.append(element)
+      }
+    }
+    return result
+  }
 }
 
 // Offer the most specific slice type available for each possible combination of

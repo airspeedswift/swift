@@ -377,10 +377,11 @@ public protocol Sequence {
     _ transform: (Iterator.Element) throws -> T
   ) rethrows -> [T]
 
-  /// Returns an array containing, in order, the elements of the sequence
-  /// that satisfy the given predicate.
+  associatedtype Filtered = [Iterator.Element]
+  /// Returns an filtered sequence containing, in order, the elements of the 
+  /// sequence that satisfy the given predicate.
   ///
-  /// In this example, `filter(_:)` is used to include only names shorter than
+  /// In this example, `filter` is used to include only names shorter than
   /// five characters.
   ///
   ///     let cast = ["Vivien", "Marlon", "Kim", "Karl"]
@@ -390,11 +391,11 @@ public protocol Sequence {
   ///
   /// - Parameter isIncluded: A closure that takes an element of the
   ///   sequence as its argument and returns a Boolean value indicating
-  ///   whether the element should be included in the returned array.
-  /// - Returns: An array of the elements that `isIncluded` allowed.
+  ///   whether the element should be included in the returned sequence.
+  /// - Returns: An array of the elements that `includeElement` allowed.
   func filter(
     _ isIncluded: (Iterator.Element) throws -> Bool
-  ) rethrows -> [Iterator.Element]
+  ) rethrows -> Filtered
 
   /// Calls the given closure on each element in the sequence in the same order
   /// as a `for`-`in` loop.
