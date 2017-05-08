@@ -232,9 +232,11 @@ public struct ${Self}<
     return try base.map(transform)
   }
 
+  public typealias Filtered = Base.Filtered
+
   public func filter(
-    _ isIncluded: (Base.Iterator.Element) throws -> Bool
-  ) rethrows -> [Base.Iterator.Element] {
+    _ isIncluded: (Iterator.Element) throws -> Bool
+  ) rethrows -> Filtered {
     Log.filter[selfType] += 1
     return try base.filter(isIncluded)
   }

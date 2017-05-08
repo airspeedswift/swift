@@ -22,6 +22,7 @@ protocol _SequenceWrapper : Sequence {
   associatedtype Base : Sequence
   associatedtype Iterator = Base.Iterator
   associatedtype SubSequence = Base.SubSequence
+  associatedtype Filtered = Base.Filtered
   
   var _base: Base { get }
 }
@@ -51,6 +52,14 @@ extension _SequenceWrapper where Iterator == Base.Iterator {
   }
 }
 
+extension _SequenceWrapper where Iterator.Element == Base.Iterator.Element, Filtered == Base.Filtered {
+  public func filter(
+    _ isIncluded: (Iterator.Element) throws -> Bool
+  ) rethrows -> Filtered {
+    return try _base.filter(isIncluded)
+  }
+}
+
 extension _SequenceWrapper where Iterator.Element == Base.Iterator.Element {
   public func map<T>(
     _ transform: (Iterator.Element) throws -> T
@@ -58,12 +67,6 @@ extension _SequenceWrapper where Iterator.Element == Base.Iterator.Element {
     return try _base.map(transform)
   }
   
-  public func filter(
-    _ isIncluded: (Iterator.Element) throws -> Bool
-  ) rethrows -> [Iterator.Element] {
-    return try _base.filter(isIncluded)
-  }
-
   public func forEach(_ body: (Iterator.Element) throws -> Void) rethrows {
     return try _base.forEach(body)
   }

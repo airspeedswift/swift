@@ -138,9 +138,9 @@ func callStaticCollectionFilter(
 func callGenericCollectionFilter<S : Collection>(
   _ sequence: S,
   _ isIncluded: (S.Iterator.Element) -> Bool
-) -> [S.Iterator.Element] {
+) -> S.Filtered {
   var result = sequence.filter(isIncluded)
-  expectType(Array<S.Iterator.Element>.self, &result)
+  expectType(S.Filtered.self, &result)
   return result
 }
 
@@ -692,16 +692,7 @@ CollectionTypeTests.test("Set<T>.find/CustomImplementation/${dispatch}") {
 
 % end
 
-extension Collection where
-  Iterator.Element : Equatable,
-
-  // FIXME: the following constraints should go away after
-  // <rdar://problem/20715697> Collection.SubSlice should constrain its
-  // Element type
-  SubSequence : Collection,
-  SubSequence.SubSequence == SubSequence,
-  SubSequence.Iterator.Element == Iterator.Element,
-  SubSequence.Index == Index {
+extension Collection where Iterator.Element : Equatable {
 
   func _test_indicesOf(_ element: Iterator.Element) -> [Index] {
     var result: [Index] = []

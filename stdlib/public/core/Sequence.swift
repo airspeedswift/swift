@@ -1201,7 +1201,9 @@ extension Sequence where Iterator.Element : Equatable {
 extension Sequence where
   SubSequence : Sequence,
   SubSequence.Iterator.Element == Iterator.Element,
-  SubSequence.SubSequence == SubSequence {
+  SubSequence.SubSequence == SubSequence,
+  Filtered : Sequence,
+  Filtered.Iterator.Element == Iterator.Element {
 
   /// Returns a subsequence containing all but the given number of initial
   /// elements.

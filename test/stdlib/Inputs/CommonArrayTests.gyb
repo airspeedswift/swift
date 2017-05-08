@@ -145,7 +145,7 @@ ${Suite}.test("${ArrayType}/filter") {
       expectUnreachable()
       return true
     }
-    expectType(Array<Int>.self, &result)
+    expectType(${ArrayType}<Int>.self, &result)
     expectEqual([], result)
     expectEqual(0, result.capacity)
   }

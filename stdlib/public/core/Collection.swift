@@ -653,6 +653,9 @@ where SubSequence: Collection, Indices: Collection,
   /// A type that represents the number of steps between a pair of
   /// indices.
   associatedtype IndexDistance = Int
+  
+  // FIXME(ABI): this should be on Sequence.Filtered
+  // associatedtype Filtered: Sequence
 
   /// A type that provides the collection's iteration interface and
   /// encapsulates its iteration state.
