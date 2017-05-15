@@ -35,7 +35,7 @@ public struct ${Self}<
   // FIXME(ABI)#43 (Recursive Protocol Constraints):
   // Elements : Collection
   // rdar://problem/20531108
-> : ${collectionForTraversal(Traversal)} {
+> : ${collectionForTraversal(Traversal)}, RangeExpression {
 
   // FIXME(compiler limitation): this typealias should be inferred.
   public typealias Index = Elements.Index
@@ -60,6 +60,16 @@ public struct ${Self}<
   @_inlineable
   public var endIndex: Elements.Index {
     return _endIndex
+  }
+
+  public func relative<C: _Indexable>(
+    to collection: C
+  ) -> Range<Index> where C.Index == Index {
+    return startIndex..<endIndex
+  }
+  
+  public func contains(_ element: Index) -> Bool {
+    return element >= startIndex && element <= endIndex
   }
 
   @_inlineable

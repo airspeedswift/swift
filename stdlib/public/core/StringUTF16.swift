@@ -155,7 +155,7 @@ extension String {
     public var endIndex: Index {
       return Index(_offset: _offset + _length)
     }
-
+    
     public struct Indices {
       internal var _elements: String.UTF16View
       internal var _startIndex: Index
@@ -632,6 +632,18 @@ extension String.UTF16View.Indices : BidirectionalCollection {
   public func distance(from start: Index, to end: Index) -> IndexDistance {
     // FIXME: swift-3-indexing-model: range check start and end?
     return _elements.distance(from: start, to: end)
+  }
+}
+
+extension String.UTF16View.Indices : RangeExpression {
+  public func relative<C: _Indexable>(
+    to collection: C
+  ) -> Range<Index> where C.Index == Index {
+    return _startIndex..<_endIndex
+  }
+
+  public func contains(_ element: Index) -> Bool {
+    return element >= _startIndex && element <= _endIndex
   }
 }
 
