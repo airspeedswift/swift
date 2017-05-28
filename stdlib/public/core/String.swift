@@ -129,6 +129,7 @@ extension _SwiftStringView {
 }
 
 extension StringProtocol {
+	@_versioned
   internal var _ephemeralString : String {
     if _fastPath(self is _SwiftStringView) {
       return (self as! _SwiftStringView)._ephemeralContent
@@ -136,6 +137,7 @@ extension StringProtocol {
     return String(String.CharacterView(self))
   }
 
+	@_versioned
   internal var _persistentString : String {
     if _fastPath(self is _SwiftStringView) {
       return (self as! _SwiftStringView)._persistentContent
