@@ -101,6 +101,7 @@ set(SWIFT_BENCH_MODULES
     single-source/SetTests
     single-source/SevenBoom
     single-source/Sim2DArray
+    single-source/SnakesAndCamels
     single-source/SortLargeExistentials
     single-source/SortLettersInPlace
     single-source/SortStrings

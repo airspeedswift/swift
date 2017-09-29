@@ -10,12 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-////////////////////////////////////////////////////////////////////////////////
-// WARNING: This file is manually generated from .gyb template and should not
-// be directly modified. Instead, make changes to main.swift.gyb and run
-// scripts/generate_harness/generate_harness.py to regenerate this file.
-////////////////////////////////////////////////////////////////////////////////
-
 // This is just a driver for performance overview tests.
 import TestsUtils
 import DriverUtils
@@ -102,6 +96,7 @@ import ReversedCollections
 import SetTests
 import SevenBoom
 import Sim2DArray
+import SnakesAndCamels
 import SortLargeExistentials
 import SortLettersInPlace
 import SortStrings
@@ -186,6 +181,8 @@ addTo(&precommitTests, "ArrayValueProp3", run_ArrayValueProp3, [.validation, .ap
 addTo(&precommitTests, "ArrayValueProp4", run_ArrayValueProp4, [.validation, .api, .Array])
 addTo(&precommitTests, "BitCount", run_BitCount, [.validation, .algorithm])
 addTo(&precommitTests, "ByteSwap", run_ByteSwap, [.validation, .algorithm])
+addTo(&precommitTests, "CamelCasedEager", run_CamelCasedEager, [.validation, .api, .String])
+addTo(&precommitTests, "CamelCasedLazy", run_CamelCasedLazy, [.validation, .api, .String])
 addTo(&precommitTests, "CStringLongAscii", run_CStringLongAscii, [.validation, .api, .String, .bridging])
 addTo(&precommitTests, "CStringLongNonAscii", run_CStringLongNonAscii, [.validation, .api, .String, .bridging])
 addTo(&precommitTests, "CStringShortAscii", run_CStringShortAscii, [.validation, .api, .String, .bridging])
@@ -424,6 +421,8 @@ addTo(&precommitTests, "SetUnion", run_SetUnion, [.validation, .api, .Set])
 addTo(&precommitTests, "SetUnion_OfObjects", run_SetUnion_OfObjects, [.validation, .api, .Set])
 addTo(&precommitTests, "SevenBoom", run_SevenBoom, [.validation])
 addTo(&precommitTests, "Sim2DArray", run_Sim2DArray, [.validation, .api, .Array])
+addTo(&precommitTests, "SnakeCasedEager", run_SnakeCasedEager, [.validation, .api, .String])
+addTo(&precommitTests, "SnakeCasedLazy", run_SnakeCasedLazy, [.validation, .api, .String])
 addTo(&precommitTests, "SortLargeExistentials", run_SortLargeExistentials, [.validation, .api, .algorithm])
 addTo(&precommitTests, "SortLettersInPlace", run_SortLettersInPlace, [.validation, .api, .algorithm, .String])
 addTo(&precommitTests, "SortSortedStrings", run_SortSortedStrings, [.validation, .api, .algorithm, .String])
