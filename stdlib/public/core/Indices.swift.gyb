@@ -36,6 +36,7 @@ public struct ${Self}<
 
   public typealias Index = Elements.Index
   public typealias Indices = ${Self}<Elements>
+	public typealias Element = Elements.Index
 
   @_inlineable
   @_versioned
@@ -99,6 +100,25 @@ public struct ${Self}<
   public func formIndex(before i: inout Index) {
     // FIXME: swift-3-indexing-model: range check.
     _elements.formIndex(before: &i)
+  }
+%     end
+
+%     if Traversal == 'RandomAccess':
+  @_inlineable
+  public func distance(from: Index, to: Index) -> Int {
+    return _elements.distance(from: from, to: to)
+  }
+
+  @_inlineable
+  public func index(_ i: Index, offsetBy n: Int) -> Index {
+    return _elements.index(i, offsetBy: n)
+  }
+  
+  @_inlineable
+  public func index(
+    _ i: Index, offsetBy n: Int, limitedBy limit: Index
+  ) -> Index? {
+    return _elements.index(i, offsetBy: n, limitedBy: limit)
   }
 %     end
 
