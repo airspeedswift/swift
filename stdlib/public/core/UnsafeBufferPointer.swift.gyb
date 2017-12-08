@@ -172,7 +172,7 @@ public struct Unsafe${Mutable}BufferPointer<Element>
     // NOTE: This method is a no-op for performance reasons.
   }
 
-  public typealias Indices = CountableRange<Int>
+  public typealias Indices = Range<Int>
 
   @_inlineable
   public var indices: Indices {

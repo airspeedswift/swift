@@ -661,7 +661,7 @@ public struct _StringCore {
 
 extension _StringCore : RandomAccessCollection {
   
-  public typealias Indices = CountableRange<Int>
+  public typealias Indices = Range<Int>
 
   @_inlineable // FIXME(sil-serialize-all)
   public // @testable
