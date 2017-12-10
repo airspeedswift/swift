@@ -18,7 +18,7 @@ import Foundation
 public class Syntax: CustomStringConvertible {
   /// The type of sequence containing the indices of present children.
   internal typealias PresentChildIndicesSequence =
-    LazyFilterSequence<CountableRange<Int>>
+    LazyFilterSequence<Range<Int>>
 
   /// The root of the tree this node is currently in.
   internal let _root: SyntaxData

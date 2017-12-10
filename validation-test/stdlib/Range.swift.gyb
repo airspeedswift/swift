@@ -7,13 +7,7 @@ import StdlibCollectionUnittest
 extension Range {
   static var _isHalfOpen: Bool { return true }
 }
-extension CountableRange {
-  static var _isHalfOpen: Bool { return true }
-}
 extension ClosedRange {
-  static var _isHalfOpen: Bool { return false }
-}
-extension CountableClosedRange {
   static var _isHalfOpen: Bool { return false }
 }
 
@@ -65,8 +59,8 @@ func generateContainsTests() -> [ContainsTest] {
 
 let containsTests: [ContainsTest] = generateContainsTests()
 
-infix operator ..<* { associativity none precedence 135 }
-infix operator ...* { associativity none precedence 135 }
+infix operator ..<* : RangeFormationPrecedence
+infix operator ...* : RangeFormationPrecedence
 
 enum VariantRange {
   case halfOpen(lowerBound: Int, upperBound: Int)
@@ -754,7 +748,7 @@ ${TestSuite}.test("CustomStringConvertible, CustomDebugStringConvertible, Custom
 % end
 
 CountableRangeTestSuite.test("AssociatedTypes") {
-  typealias Collection = CountableRange<MinimalStrideableValue>
+  typealias Collection = Range<MinimalStrideableValue>
   expectCollectionAssociatedTypes(
     collectionType: Collection.self,
     iteratorType: IndexingIterator<Collection>.self,
@@ -764,13 +758,13 @@ CountableRangeTestSuite.test("AssociatedTypes") {
 }
 
 CountableClosedRangeTestSuite.test("AssociatedTypes") {
-  typealias Collection = CountableClosedRange<MinimalStrideableValue>
+  typealias Collection = ClosedRange<MinimalStrideableValue>
   expectCollectionAssociatedTypes(
     collectionType: Collection.self,
     iteratorType: IndexingIterator<Collection>.self,
-    subSequenceType: RandomAccessSlice<Collection>.self,
+    subSequenceType: Slice<Collection>.self,
     indexType: ClosedRangeIndex<MinimalStrideableValue>.self,
-    indicesType: DefaultRandomAccessIndices<Collection>.self)
+    indicesType: DefaultIndices<Collection>.self)
 }
 
 var MiscTestSuite = TestSuite("Misc")
@@ -785,7 +779,7 @@ MiscTestSuite.test("map()") {
 MiscTestSuite.test("reversed()") {
   var result = (0..<10).lazy.reversed()
   typealias Expected = LazyCollection<
-    ReversedRandomAccessCollection<CountableRange<Int>>>
+    ReversedCollection<Range<Int>>>
     expectType(Expected.self, &result)
   expectEqualSequence(
     [ 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 ],

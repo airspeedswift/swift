@@ -147,7 +147,7 @@ FoundationTestSuite.test("RangeConversion") {
   let nsrFromInt8 = NSRange(i..<j)
   expectEqual(nsrFromInt8, NSRange(location: 10, length: 10))
 
-  var r = Range(nsrFromInt8)
+  var r = nsrFromInt8
   expectNotNil(r)
   expectEqual(r!.lowerBound, 10)
   expectEqual(r!.upperBound, 20)

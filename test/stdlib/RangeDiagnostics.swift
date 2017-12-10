@@ -37,10 +37,6 @@ func typeInference_Comparable<C : Comparable>(v: C) {
   do {
     let r1: Range<C>       = v...v // expected-error {{cannot convert value of type 'ClosedRange<C>' to specified type 'Range<C>'}}
     let r2: ClosedRange<C> = v..<v // expected-error {{cannot convert value of type 'Range<C>' to specified type 'ClosedRange<C>'}}
-    let r3: CountableRange<C>       = v..<v // expected-error {{type 'C' does not conform to protocol 'Strideable'}}
-    let r4: CountableClosedRange<C> = v...v // expected-error {{type 'C' does not conform to protocol 'Strideable'}}
-    let r5: CountableRange<C>       = v...v // expected-error {{type 'C' does not conform to protocol 'Strideable'}}
-    let r6: CountableClosedRange<C> = v..<v // expected-error {{type 'C' does not conform to protocol 'Strideable'}}
   }
 }
 
@@ -56,13 +52,9 @@ func typeInference_Strideable<S : Strideable>(v: S) {
   do {
     let r1: Range<S>       = v...v // expected-error {{cannot convert value of type 'ClosedRange<S>' to specified type 'Range<S>'}}
     let r2: ClosedRange<S> = v..<v // expected-error {{cannot convert value of type 'Range<S>' to specified type 'ClosedRange<S>'}}
-    let r3: CountableRange<S>       = v..<v // expected-error {{type 'S.Stride' does not conform to protocol 'SignedInteger'}}
-    let r4: CountableClosedRange<S> = v...v // expected-error {{type 'S.Stride' does not conform to protocol 'SignedInteger'}}
-    let r5: CountableRange<S>       = v...v // expected-error {{type 'S.Stride' does not conform to protocol 'SignedInteger'}}
-    let r6: CountableClosedRange<S> = v..<v // expected-error {{type 'S.Stride' does not conform to protocol 'SignedInteger'}}
-    let r7: PartialRangeUpTo<S> = v... // expected-error {{cannot convert value of type 'PartialRangeFrom<S>' to specified type 'PartialRangeUpTo<S>'}}
-    let r8: PartialRangeUpTo<S> = v... // expected-error {{cannot convert value of type 'PartialRangeFrom<S>' to specified type 'PartialRangeUpTo<S>'}}
-    let r9: Range<S> = v..< // expected-error {{'..<' is not a postfix unary operator}}
+    let r3: PartialRangeUpTo<S> = v... // expected-error {{cannot convert value of type 'PartialRangeFrom<S>' to specified type 'PartialRangeUpTo<S>'}}
+    let r4: PartialRangeUpTo<S> = v... // expected-error {{cannot convert value of type 'PartialRangeFrom<S>' to specified type 'PartialRangeUpTo<S>'}}
+    let r5: Range<S> = v..< // expected-error {{'..<' is not a postfix unary operator}}
   }
 }
 
@@ -70,11 +62,11 @@ func typeInference_StrideableWithSignedIntegerStride<S : Strideable>(v: S)
   where S.Stride : SignedInteger {
   do {
     var range = v..<v
-    expectType(CountableRange<S>.self, &range)
+    expectType(Range<S>.self, &range)
   }
   do {
     var range = v...v
-    expectType(CountableClosedRange<S>.self, &range)
+    expectType(ClosedRange<S>.self, &range)
   }
   do {
     var range = v...
@@ -87,10 +79,10 @@ func typeInference_StrideableWithSignedIntegerStride<S : Strideable>(v: S)
     let _: ClosedRange<S> = v...v
   }
   do {
-    let _: Range<S>       = v...v // expected-error {{cannot convert value of type 'CountableClosedRange<S>' to specified type 'Range<S>'}}
-    let _: ClosedRange<S> = v..<v // expected-error {{cannot convert value of type 'CountableRange<S>' to specified type 'ClosedRange<S>'}}
-    let _: CountableRange<S>       = v...v // expected-error {{cannot convert value of type 'CountableClosedRange<S>' to specified type 'CountableRange<S>'}}
-    let _: CountableClosedRange<S> = v..<v // expected-error {{cannot convert value of type 'CountableRange<S>' to specified type 'CountableClosedRange<S>'}}
+    let _: Range<S>       = v...v // expected-error {{cannot convert value of type 'ClosedRange<S>' to specified type 'Range<S>'}}
+    let _: ClosedRange<S> = v..<v // expected-error {{cannot convert value of type 'Range<S>' to specified type 'ClosedRange<S>'}}
+    let _: CountableRange<S>       = v...v // expected-error {{cannot convert value of type 'ClosedRange<S>' to specified type 'Range<S>'}}
+    let _: CountableClosedRange<S> = v..<v // expected-error {{cannot convert value of type 'Range<S>' to specified type 'ClosedRange<S>'}}
     let _: CountableClosedRange<S> = v... // expected-error {{cannot convert value of type 'CountablePartialRangeFrom<S>' to specified type 'CountableClosedRange<S>'}}
   }
 }
@@ -102,7 +94,7 @@ func typeInference_commonTypes() {
   // ---------------------------------------------
   do {
     var range = 1..<10
-    expectType(CountableRange<Int>.self, &range)
+    expectType(Range<Int>.self, &range)
   }
   do {
     var range = 1..< // expected-error {{'..<' is not a postfix unary operator}}
@@ -117,15 +109,15 @@ func typeInference_commonTypes() {
   }
   do {
     var range = UInt(1)..<10
-    expectType(CountableRange<UInt>.self, &range)
+    expectType(Range<UInt>.self, &range)
   }
   do {
     var range = Int8(1)..<10
-    expectType(CountableRange<Int8>.self, &range)
+    expectType(Range<Int8>.self, &range)
   }
   do {
     var range = UInt8(1)..<10
-    expectType(CountableRange<UInt8>.self, &range)
+    expectType(Range<UInt8>.self, &range)
   }
   do {
     var range = 1.0..<10.0
@@ -166,7 +158,7 @@ func typeInference_commonTypes() {
   // ---------------------------------------------
   do {
     var range = 1...10
-    expectType(CountableClosedRange<Int>.self, &range)
+    expectType(ClosedRange<Int>.self, &range)
   }
   do {
     var range = 1...

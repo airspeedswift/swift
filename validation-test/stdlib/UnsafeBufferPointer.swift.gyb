@@ -65,9 +65,9 @@ ${SelfName}TestSuite.test("AssociatedTypes") {
 %   else:
     iteratorType: UnsafeBufferPointerIterator<Float>.self,
 %   end
-    subSequenceType: ${'Mutable' if IsMutable else ''}RandomAccessSlice<${SelfType}>.self,
+    subSequenceType: Slice<${SelfType}>.self,
     indexType: Int.self,
-    indicesType: CountableRange<Int>.self)
+    indicesType: Range<Int>.self)
 
   expect${'Mutable' if IsMutable else ''}CollectionType(${SelfType}.self)
 }
@@ -505,7 +505,7 @@ struct SubscriptSetTest : SubscriptTest {
   func replacementValuesSlice(
     from memory: UnsafeMutablePointer<OpaqueValue<Int>>,
     replacementValues: [OpaqueValue<Int>]
-  ) -> MutableRandomAccessSlice<UnsafeMutableBufferPointer<OpaqueValue<Int>>>
+  ) -> Slice<UnsafeMutableBufferPointer<OpaqueValue<Int>>>
   {
     for (i, value) in replacementValues.enumerated() {
       memory[i] = value
