@@ -122,7 +122,7 @@ extension _ValidUTF8Buffer : BidirectionalCollection {
 }
 
 extension _ValidUTF8Buffer : RandomAccessCollection {
-  public typealias Indices = DefaultRandomAccessIndices<_ValidUTF8Buffer>
+  public typealias Indices = DefaultIndices<_ValidUTF8Buffer>
 
   @_inlineable // FIXME(sil-serialize-all)
   @inline(__always)
@@ -212,15 +212,3 @@ extension _ValidUTF8Buffer {
     return _ValidUTF8Buffer(_biasedBits: 0xBD_BF_EF &+ 0x01_01_01)
   }
 }
-
-/*
-let test = _ValidUTF8Buffer<UInt64>(0..<8)
-print(Array(test))
-print(test.startIndex)
-for (ni, i) in test.indices.enumerated() {
-  for (nj, j) in test.indices.enumerated() {
-    assert(test.distance(from: i, to: j) == nj - ni)
-    assert(test.index(i, offsetBy: nj - ni) == j)
-  }
-}
-*/

@@ -169,7 +169,7 @@ extension RandomAccessCollection {
 extension RandomAccessCollection
 where Index : Strideable, 
       Index.Stride == Int,
-      Indices == CountableRange<Index> {
+      Indices == Range<Index> {
 
   /// The indices that are valid for subscripting the collection, in ascending
   /// order.
