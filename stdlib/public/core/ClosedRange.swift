@@ -307,6 +307,7 @@ extension ClosedRange: Sequence, Collection, BidirectionalCollection, RandomAcce
   }
 }
 
+@available(*, deprecated: 4.2, renamed: "ClosedRange")
 public typealias CountableClosedRange<Bound: Comparable> = ClosedRange<Bound>
 
 extension Comparable {  
@@ -364,5 +365,86 @@ extension Strideable where Stride: SignedInteger {
     _precondition(
       minimum <= maximum, "Can't form Range with upperBound < lowerBound")
     return ClosedRange(uncheckedBounds: (lower: minimum, upper: maximum))
+  }
+}
+
+extension ClosedRange: Equatable {
+  /// Returns a Boolean value indicating whether two ranges are equal.
+  ///
+  /// Two ranges are equal when they have the same lower and upper bounds.
+  ///
+  ///     let x: ClosedRange = 5...15
+  ///     print(x == 5...15)
+  ///     // Prints "true"
+  ///     print(x == 10...20)
+  ///     // Prints "false"
+  ///
+  /// - Parameters:
+  ///   - lhs: A range to compare.
+  ///   - rhs: Another range to compare.
+  @_inlineable
+  public static func == (
+    lhs: ClosedRange<Bound>, rhs: ClosedRange<Bound>
+  ) -> Bool {
+    return lhs.lowerBound == rhs.lowerBound && lhs.upperBound == rhs.upperBound
+  }
+}
+
+extension ClosedRange : CustomStringConvertible {
+  /// A textual representation of the range.
+  @_inlineable // FIXME(sil-serialize-all)
+  public var description: String {
+    return "\(lowerBound)...\(upperBound)"
+  }
+}
+
+extension ClosedRange : CustomDebugStringConvertible {
+  /// A textual representation of the range, suitable for debugging.
+  @_inlineable // FIXME(sil-serialize-all)
+  public var debugDescription: String {
+    return "ClosedRange(\(String(reflecting: lowerBound))"
+    + "...\(String(reflecting: upperBound)))"
+  }
+}
+
+extension ClosedRange : CustomReflectable {
+  @_inlineable // FIXME(sil-serialize-all)
+  public var customMirror: Mirror {
+    return Mirror(
+      self, children: ["lowerBound": lowerBound, "upperBound": upperBound])
+  }
+}
+
+extension ClosedRange {
+  /// Returns a copy of this range clamped to the given limiting range.
+  ///
+  /// The bounds of the result are always limited to the bounds of `limits`.
+  /// For example:
+  ///
+  ///     let x: ClosedRange = 0...20
+  ///     print(x.clamped(to: 10...1000))
+  ///     // Prints "10...20"
+  ///
+  /// If the two ranges do not overlap, the result is a single-element range at
+  /// the upper or lower bound of `limits`.
+  ///
+  ///     let y: ClosedRange = 0...5
+  ///     print(y.clamped(to: 10...1000))
+  ///     // Prints "10...10"
+  ///
+  /// - Parameter limits: The range to clamp the bounds of this range.
+  /// - Returns: A new range clamped to the bounds of `limits`.
+  @_inlineable // FIXME(sil-serialize-all)
+  @inline(__always)
+  public func clamped(to limits: ClosedRange) -> ClosedRange {
+    let lower =         
+      limits.lowerBound > self.lowerBound ? limits.lowerBound
+          : limits.upperBound < self.lowerBound ? limits.upperBound
+          : self.lowerBound
+    let upper =
+      limits.upperBound < self.upperBound ? limits.upperBound
+          : limits.lowerBound > self.upperBound ? limits.lowerBound
+          : self.upperBound
+    return ClosedRange(uncheckedBounds: (lower: lower, upper: upper))
   }
 }
