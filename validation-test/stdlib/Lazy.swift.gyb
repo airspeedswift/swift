@@ -413,7 +413,7 @@ LazyTestSuite.test("last empty") {
 //===----------------------------------------------------------------------===//
 
 // Check that the generic parameter is called 'Base'.
-extension LazySequence where Base : TestProtocol1 {
+extension Lazy where Base : TestProtocol1 {
   var _baseIsTestProtocol1: Bool {
     fatalError("not implemented")
   }
@@ -519,13 +519,6 @@ LazyTestSuite.test("MapCollection<${TraversalCollection}>/underestimatedCount") 
 //===----------------------------------------------------------------------===//
 // LazyCollection
 //===----------------------------------------------------------------------===//
-
-// Check that the generic parameter is called 'Base'.
-extension LazyCollection where Base : TestProtocol1 {
-  var _baseIsTestProtocol1: Bool {
-    fatalError("not implemented")
-  }
-}
 
 %for (Traversal, ReversedType) in [
 %    ('Forward', None),
