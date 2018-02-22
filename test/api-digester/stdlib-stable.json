@@ -16604,66 +16604,6 @@
     },
     {
       "kind": "TypeDecl",
-      "name": "_SequenceWrapper",
-      "printedName": "_SequenceWrapper",
-      "declKind": "Protocol",
-      "usr": "s:Ps16_SequenceWrapper",
-      "location": "",
-      "moduleName": "Swift",
-      "children": [
-        {
-          "kind": "Var",
-          "name": "underestimatedCount",
-          "printedName": "underestimatedCount",
-          "declKind": "Var",
-          "usr": "s:vesRxs8Sequencexs16_SequenceWrapperwxPS_8IteratorzWxPS0_4BaseS1__rS0_19underestimatedCountSi",
-          "location": "",
-          "moduleName": "Swift",
-          "children": [
-            {
-              "kind": "TypeNominal",
-              "name": "Int",
-              "printedName": "Int"
-            },
-            {
-              "kind": "Getter",
-              "name": "_",
-              "printedName": "_()",
-              "declKind": "Func",
-              "usr": "s:FesRxs8Sequencexs16_SequenceWrapperwxPS_8IteratorzWxPS0_4BaseS1__rS0_g19underestimatedCountSi",
-              "location": "",
-              "moduleName": "Swift",
-              "children": [
-                {
-                  "kind": "TypeNominal",
-                  "name": "Int",
-                  "printedName": "Int"
-                },
-                {
-                  "kind": "TypeNominal",
-                  "name": "Archetype",
-                  "printedName": "Self",
-                  "children": [
-                    {
-                      "kind": "TypeNominal",
-                      "name": "Sequence",
-                      "printedName": "Sequence"
-                    },
-                    {
-                      "kind": "TypeNominal",
-                      "name": "_SequenceWrapper",
-                      "printedName": "_SequenceWrapper"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "kind": "TypeDecl",
       "name": "UInt",
       "printedName": "UInt",
       "declKind": "Struct",

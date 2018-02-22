@@ -77,8 +77,7 @@ set(SWIFTLIB_ESSENTIAL
   Integers.swift.gyb
   Join.swift
   KeyPath.swift
-  LazyCollection.swift
-  LazySequence.swift
+  Lazy.swift
   LifetimeManager.swift
   ManagedBuffer.swift
   Map.swift
@@ -110,7 +109,6 @@ set(SWIFTLIB_ESSENTIAL
   SentinelCollection.swift
   Sequence.swift
   SequenceAlgorithms.swift
-  SequenceWrapper.swift
   SetAlgebra.swift
   ShadowProtocols.swift
   Shims.swift

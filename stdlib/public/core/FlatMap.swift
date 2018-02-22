@@ -23,8 +23,7 @@ extension LazySequenceProtocol {
   @_inlineable // FIXME(sil-serialize-all)
   public func flatMap<SegmentOfResult>(
     _ transform: @escaping (Elements.Element) -> SegmentOfResult
-  ) -> LazySequence<
-    FlattenSequence<LazyMapSequence<Elements, SegmentOfResult>>> {
+  ) -> Lazy<FlattenSequence<LazyMapSequence<Elements, SegmentOfResult>>> {
     return self.map(transform).joined()
   }
 
@@ -86,10 +85,7 @@ extension LazyCollectionProtocol {
   @_inlineable // FIXME(sil-serialize-all)
   public func flatMap<SegmentOfResult>(
     _ transform: @escaping (Elements.Element) -> SegmentOfResult
-  ) -> LazyCollection<
-    FlattenCollection<
-      LazyMapCollection<Elements, SegmentOfResult>>
-  > {
+  ) -> Lazy<FlattenCollection<LazyMapCollection<Elements, SegmentOfResult>>> {
     return self.map(transform).joined()
   }
 

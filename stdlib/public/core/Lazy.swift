@@ -1,4 +1,4 @@
-//===--- LazySequence.swift -----------------------------------------------===//
+//===--- Lazy.swift -------------------------------------------------------===//
 //
 // This source file is part of the Swift.org open source project
 //
@@ -108,7 +108,7 @@
 ///       }
 ///     }
 ///
-/// - See also: `LazySequence`, `LazyCollectionProtocol`, `LazyCollection`
+/// - See also: `Lazy`, `LazyCollectionProtocol`
 ///
 /// - Note: The explicit permission to implement further operations
 ///   lazily applies only in contexts where the sequence is statically
@@ -160,7 +160,7 @@ extension LazySequenceProtocol where Elements == Self {
 
 extension LazySequenceProtocol {
   @_inlineable // FIXME(sil-serialize-all)
-  public var lazy: LazySequence<Elements> {
+  public var lazy: Lazy<Elements> {
     return elements.lazy
   }
 }
@@ -178,7 +178,7 @@ extension LazySequenceProtocol where Elements: LazySequenceProtocol {
 ///
 /// - See also: `LazySequenceProtocol`
 @_fixed_layout // FIXME(sil-serialize-all)
-public struct LazySequence<Base : Sequence> {
+public struct Lazy<Base: Sequence> {
   public var _base: Base
 
   /// Creates a sequence that has the same elements as `base`, but on
@@ -191,45 +191,45 @@ public struct LazySequence<Base : Sequence> {
   }
 }
 
-extension LazySequence: Sequence {
-  typealias Element = Base.Element
-  typealias Iterator = Base.Iterator
-  typealias SubSequence = Base.SubSequence
+extension Lazy: Sequence {
+  public typealias Element = Base.Element
+  public typealias Iterator = Base.Iterator
+  public typealias SubSequence = Lazy<Base.SubSequence>
 
   @_inlineable // FIXME(sil-serialize-all)
   public var underestimatedCount: Int { return _base.underestimatedCount }
 
   @_inlineable // FIXME(sil-serialize-all)
-  func makeIterator() -> Iterator { return _base.makeIterator() }
+  public func makeIterator() -> Iterator { return _base.makeIterator() }
 
   @_inlineable // FIXME(sil-serialize-all)
-  public func dropFirst(_ n: Int) -> SubSequence { return _base.dropFirst(n) }
+  public func dropFirst(_ n: Int) -> SubSequence { return _base.dropFirst(n).lazy }
 
   @_inlineable // FIXME(sil-serialize-all)
-  public func dropLast(_ n: Int) -> SubSequence { return _base.dropLast(n) }
+  public func dropLast(_ n: Int) -> SubSequence { return _base.dropLast(n).lazy }
 
   @_inlineable // FIXME(sil-serialize-all)
   public func prefix(_ maxLength: Int) -> SubSequence {
-    return _base.prefix(maxLength)
+    return _base.prefix(maxLength).lazy
   }
 
   @_inlineable // FIXME(sil-serialize-all)
   public func suffix(_ maxLength: Int) -> SubSequence {
-    return _base.suffix(maxLength)
+    return _base.suffix(maxLength).lazy
   }
 
   @_inlineable // FIXME(sil-serialize-all)
   public func drop(
     while predicate: (Element) throws -> Bool
   ) rethrows -> SubSequence {
-    return try _base.drop(while: predicate)
+    return try _base.drop(while: predicate).lazy
   }
 
   @_inlineable // FIXME(sil-serialize-all)
   public func prefix(
     while predicate: (Element) throws -> Bool
   ) rethrows -> SubSequence {
-    return try _base.prefix(while: predicate)
+    return try _base.prefix(while: predicate).lazy
   }
   
   @_inlineable // FIXME(sil-serialize-all)
@@ -241,11 +241,30 @@ extension LazySequence: Sequence {
       maxSplits: maxSplits,
       omittingEmptySubsequences: omittingEmptySubsequences,
       whereSeparator: isSeparator
-    )
+    ).map { $0.lazy }
+  }
+
+  @_inlineable
+  public func _copyToContiguousArray() -> ContiguousArray<Base.Element> {
+    return _base._copyToContiguousArray()
+  }
+
+  @_inlineable
+  public func _copyContents(
+    initializing buf: UnsafeMutableBufferPointer<Element>
+  ) -> (Iterator,UnsafeMutableBufferPointer<Element>.Index) {
+    return _base._copyContents(initializing: buf)
+  }
+
+  @_inlineable
+  public func _customContainsEquatableElement(
+    _ element: Base.Element
+  ) -> Bool? {
+    return _base._customContainsEquatableElement(element)
   }
 }
 
-extension LazySequence: LazySequenceProtocol {
+extension Lazy: LazySequenceProtocol {
   public typealias Elements = Base
 
   /// The `Base` (presumably non-lazy) sequence from which `self` was created.
@@ -258,7 +277,102 @@ extension Sequence {
   /// but on which some operations, such as `map` and `filter`, are
   /// implemented lazily.
   @_inlineable // FIXME(sil-serialize-all)
-  public var lazy: LazySequence<Self> {
-    return LazySequence(_base: self)
+  public var lazy: Lazy<Self> {
+    return Lazy(_base: self)
   }
 }
+
+/// A collection on which normally-eager operations such as `map` and
+/// `filter` are implemented lazily.
+///
+/// Please see `LazySequenceProtocol` for background; `LazyCollectionProtocol`
+/// is an analogous component, but for collections.
+///
+/// To add new lazy collection operations, extend this protocol with
+/// methods that return lazy wrappers that are themselves
+/// `LazyCollectionProtocol`s.
+public protocol LazyCollectionProtocol: Collection, LazySequenceProtocol {
+  associatedtype Elements: Collection
+}
+
+extension Lazy: Collection where Elements: Collection {
+  public typealias Index = Base.Index
+  public typealias Indices = Base.Indices
+
+  @_inlineable
+  public var startIndex: Index { return _base.startIndex }
+
+  @_inlineable
+  public var endIndex: Index { return _base.endIndex }
+
+  @_inlineable
+  public var indices: Indices { return _base.indices }
+
+  @_inlineable
+  public func index(after i: Index) -> Index { return _base.index(after: i) }
+
+  @_inlineable
+  public subscript(position: Index) -> Element { return _base[position] }
+
+  @_inlineable
+  public subscript(bounds: Range<Index>) -> SubSequence { return _base[bounds].lazy }
+
+  @_inlineable
+  public var isEmpty: Bool { return _base.isEmpty }
+
+  @_inlineable
+  public var count: Int { return _base.count }
+
+  @_inlineable
+  public func _customIndexOfEquatableElement(
+    _ element: Element
+  ) -> Index?? {
+    return _base._customIndexOfEquatableElement(element)
+  }
+
+  @_inlineable
+  public var first: Element? { return _base.first }
+
+  @_inlineable
+  public func index(_ i: Index, offsetBy n: Int) -> Index {
+    return _base.index(i, offsetBy: n)
+  }
+
+  @_inlineable
+  public func index(
+    _ i: Index, offsetBy n: Int, limitedBy limit: Index
+  ) -> Index? {
+    return _base.index(i, offsetBy: n, limitedBy: limit)
+  }
+
+  @_inlineable
+  public func distance(from start: Index, to end: Index) -> Int {
+    return _base.distance(from:start, to: end)
+  }
+}
+
+extension Lazy: LazyCollectionProtocol where Elements: Collection { }
+
+extension Lazy: BidirectionalCollection where Base: BidirectionalCollection {
+  @_inlineable
+  public func index(before i: Index) -> Index { return _base.index(before: i) }
+
+  @_inlineable
+  public var last: Element? { return _base.last }
+}
+
+extension Lazy: RandomAccessCollection where Base : RandomAccessCollection { }
+
+extension Slice: LazySequenceProtocol where Base: LazySequenceProtocol { }
+extension Slice: LazyCollectionProtocol where Base: LazyCollectionProtocol { }
+extension ReversedCollection: LazySequenceProtocol where Base: LazySequenceProtocol { }
+extension ReversedCollection: LazyCollectionProtocol where Base: LazyCollectionProtocol { }
+
+@available(*, deprecated, renamed: "Lazy")
+public typealias LazySequence<T: Sequence> = Lazy<T>
+@available(*, deprecated, renamed: "Lazy")
+public typealias LazyCollection<T: Collection> = Lazy<T>
+@available(*, deprecated, renamed: "Lazy")
+public typealias LazyBidirectionalCollection<T: BidirectionalCollection> = Lazy<T>
+@available(*, deprecated, renamed: "Lazy")
+public typealias LazyRandomAccessCollection<T: RandomAccessCollection> = Lazy<T>

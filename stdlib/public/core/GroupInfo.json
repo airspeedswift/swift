@@ -87,9 +87,7 @@
         "Slice.swift",
         "DropWhile.swift",
         "PrefixWhile.swift",
-        "SequenceWrapper.swift",
-        "LazyCollection.swift",
-        "LazySequence.swift"],
+        "Lazy.swift"],
       "Array": [
         "ArrayBody.swift",
         "ArrayBuffer.swift",

@@ -131,7 +131,7 @@ extension LazySequenceProtocol where Element : Sequence {
   /// Returns a lazy sequence that concatenates the elements of this sequence of
   /// sequences.
   @_inlineable // FIXME(sil-serialize-all)
-  public func joined() -> LazySequence<FlattenSequence<Elements>> {
+  public func joined() -> Lazy<FlattenSequence<Elements>> {
     return FlattenSequence(_base: elements).lazy
   }
 }
@@ -517,11 +517,10 @@ extension Collection where Element : Collection {
   }
 }
 
-extension LazyCollectionProtocol
-  where Self : Collection, Element : Collection {
+extension LazyCollectionProtocol where Self: Collection, Element: Collection {
   /// A concatenation of the elements of `self`.
   @_inlineable // FIXME(sil-serialize-all)
-  public func joined() -> LazyCollection<FlattenCollection<Elements>> {
+  public func joined() -> Lazy<FlattenCollection<Elements>> {
     return FlattenCollection(elements).lazy
   }
 }
