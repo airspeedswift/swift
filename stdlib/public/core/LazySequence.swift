@@ -178,7 +178,7 @@ extension LazySequenceProtocol where Elements: LazySequenceProtocol {
 ///
 /// - See also: `LazySequenceProtocol`
 @_fixed_layout // FIXME(sil-serialize-all)
-public struct LazySequence<Base : Sequence>: _SequenceWrapper {
+public struct LazySequence<Base : Sequence> {
   public var _base: Base
 
   /// Creates a sequence that has the same elements as `base`, but on
@@ -188,6 +188,60 @@ public struct LazySequence<Base : Sequence>: _SequenceWrapper {
   @_versioned // FIXME(sil-serialize-all)
   internal init(_base: Base) {
     self._base = _base
+  }
+}
+
+extension LazySequence: Sequence {
+  typealias Element = Base.Element
+  typealias Iterator = Base.Iterator
+  typealias SubSequence = Base.SubSequence
+
+  @_inlineable // FIXME(sil-serialize-all)
+  public var underestimatedCount: Int { return _base.underestimatedCount }
+
+  @_inlineable // FIXME(sil-serialize-all)
+  func makeIterator() -> Iterator { return _base.makeIterator() }
+
+  @_inlineable // FIXME(sil-serialize-all)
+  public func dropFirst(_ n: Int) -> SubSequence { return _base.dropFirst(n) }
+
+  @_inlineable // FIXME(sil-serialize-all)
+  public func dropLast(_ n: Int) -> SubSequence { return _base.dropLast(n) }
+
+  @_inlineable // FIXME(sil-serialize-all)
+  public func prefix(_ maxLength: Int) -> SubSequence {
+    return _base.prefix(maxLength)
+  }
+
+  @_inlineable // FIXME(sil-serialize-all)
+  public func suffix(_ maxLength: Int) -> SubSequence {
+    return _base.suffix(maxLength)
+  }
+
+  @_inlineable // FIXME(sil-serialize-all)
+  public func drop(
+    while predicate: (Element) throws -> Bool
+  ) rethrows -> SubSequence {
+    return try _base.drop(while: predicate)
+  }
+
+  @_inlineable // FIXME(sil-serialize-all)
+  public func prefix(
+    while predicate: (Element) throws -> Bool
+  ) rethrows -> SubSequence {
+    return try _base.prefix(while: predicate)
+  }
+  
+  @_inlineable // FIXME(sil-serialize-all)
+  public func split(
+    maxSplits: Int, omittingEmptySubsequences: Bool,
+    whereSeparator isSeparator: (Element) throws -> Bool
+  ) rethrows -> [SubSequence] {
+    return try _base.split(
+      maxSplits: maxSplits,
+      omittingEmptySubsequences: omittingEmptySubsequences,
+      whereSeparator: isSeparator
+    )
   }
 }
 
