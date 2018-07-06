@@ -31,8 +31,6 @@ extension Array : _ObjectiveCBridgeable {
   /// The provided `NSArray` will be copied to ensure that the copy can
   /// not be mutated by other code.
   internal init(_cocoaArray: NSArray) {
-    _sanityCheck(_isBridgedVerbatimToObjectiveC(Element.self),
-      "Array can be backed by NSArray only when the element type can be bridged verbatim to Objective-C")
     // FIXME: We would like to call CFArrayCreateCopy() to avoid doing an
     // objc_msgSend() for instances of CoreFoundation types.  We can't do that
     // today because CFArrayCreateCopy() copies array contents unconditionally,
