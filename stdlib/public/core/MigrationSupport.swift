@@ -190,66 +190,66 @@ extension _BitwiseOperations {
 extension FloatingPoint {
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public func negated() -> Self {
-    return -self
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public func adding(_ other: Self) -> Self {
-    return self + other
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public mutating func add(_ other: Self) {
-    self += other
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public func subtracting(_ other: Self) -> Self {
-    return self - other
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public mutating func subtract(_ other: Self) {
-    self -= other
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public func multiplied(by other: Self) -> Self {
-    return self * other
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public mutating func multiply(by other: Self) {
-    self *= other
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public func divided(by other: Self) -> Self {
-    return self / other
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4, message: "Please use operators instead.")
   public mutating func divide(by other: Self) {
-    self /= other
+    Builtin.unreachable()
   }
 }
 
 extension FloatingPoint {
   @available(*, unavailable, message: "Use bitPattern property instead")
   public func _toBitPattern() -> UInt {
-    fatalError("unavailable")
+    Builtin.unreachable()
   }
 
   @available(*, unavailable, message: "Use init(bitPattern:) instead")
   public static func _fromBitPattern(_ bits: UInt) -> Self {
-    fatalError("unavailable")
+    Builtin.unreachable()
   }
 }
 
 extension BinaryFloatingPoint {
   @available(*, unavailable, renamed: "isSignalingNaN")
   public var isSignaling: Bool {
-    fatalError("unavailable")
+    Builtin.unreachable()
   }
 
   @available(*, unavailable, renamed: "nan")
@@ -258,7 +258,7 @@ extension BinaryFloatingPoint {
   }
   @available(*, unavailable, renamed: "nan")
   public var quietNaN: Bool {
-    fatalError("unavailable")
+    Builtin.unreachable()
   }
 }
 
@@ -285,21 +285,21 @@ extension SignedNumeric where Self : Comparable {
   @available(swift, obsoleted: 4, message: "Please use the 'abs(_:)' free function.")
   @_transparent
   public static func abs(_ x: Self) -> Self {
-    return Swift.abs(x)
+    Builtin.unreachable()
   }
 }
 
 extension BinaryInteger {
   @available(swift, obsoleted: 4)
   public func toIntMax() -> Int64 {
-    return Int64(self)
+    Builtin.unreachable()
   }
 }
 
 extension UnsignedInteger {
   @available(swift, obsoleted: 4)
   public func toUIntMax() -> UInt64 {
-    return UInt64(self)
+    Builtin.unreachable()
   }
 }
 
@@ -310,7 +310,7 @@ extension Range where Bound: Strideable, Bound.Stride : SignedInteger {
   @available(*, deprecated: 4.2/*, obsoleted: 5.0*/, message: "CountableRange is now a Range. No need to convert any more.")
   public init(_ other: Range<Bound>) {
     self = other
-  }  
+  }
 }
 
 extension ClosedRange where Bound: Strideable, Bound.Stride : SignedInteger {
@@ -326,7 +326,7 @@ extension ClosedRange where Bound: Strideable, Bound.Stride : SignedInteger {
 extension _ExpressibleByColorLiteral {
   @available(swift, deprecated: 3.2, obsoleted: 4.0, message: "This initializer is only meant to be used by color literals")
   public init(colorLiteralRed red: Float, green: Float, blue: Float, alpha: Float) {
-    self.init(_colorLiteralRed: red, green: green, blue: blue, alpha: alpha)
+    Builtin.unreachable()
   }
 }
 
@@ -361,25 +361,21 @@ extension LazyMapCollection {
     Other : LazyCollectionProtocol
   >(lhs: LazyMapCollection, rhs: Other) -> [Element]
   where Other.Element == Element {
-    var result: [Element] = []
-    result.reserveCapacity(numericCast(lhs.count + rhs.count))
-    result.append(contentsOf: lhs)
-    result.append(contentsOf: rhs)
-    return result
+    Builtin.unreachable()
   }
 }
 
 extension FloatingPoint {
   @available(swift, deprecated: 3.1, obsoleted: 4.0, message: "Please use the `abs(_:)` free function")
   public static func abs(_ x: Self) -> Self {
-    return x.magnitude
+    Builtin.unreachable()
   }
 }
 
 extension FixedWidthInteger {
   /// The empty bitset.
   @available(swift, deprecated: 3.1, obsoleted: 4.0, message: "Use 0")
-  public static var allZeros: Self { return 0 }
+  public static var allZeros: Self { Builtin.unreachable() }
 }
 
 extension LazyCollectionProtocol {
@@ -444,34 +440,13 @@ extension String {
 
   @available(swift, deprecated: 3.2, obsoleted: 4.0)
   public init?(_ utf16: UTF16View) {
-    // Attempt to recover the whole string, the better to implement the actual
-    // Swift 3.1 semantics, which are not as documented above!  Full Swift 3.1
-    // semantics may be impossible to preserve in the case of string literals,
-    // since we no longer have access to the length of the original string when
-    // there is no owner and elements are dropped from the end.
-    let wholeString = String(utf16._guts)
-    guard
-      let start = UTF16Index(encodedOffset: utf16._offset)
-        .samePosition(in: wholeString),
-      let end = UTF16Index(encodedOffset: utf16._offset + utf16._length)
-        .samePosition(in: wholeString)
-      else
-    {
-        return nil
-    }
-    self = String(wholeString[start..<end])
+    Builtin.unreachable()
   }
   
   @available(swift, deprecated: 3.2, message: "Failable initializer was removed in Swift 4. When upgrading to Swift 4, please use non-failable String.init(_:UTF8View)")
   @available(swift, obsoleted: 4.0, message: "Please use non-failable String.init(_:UTF8View) instead")
   public init?(_ utf8: UTF8View) {
-    if utf8.startIndex.transcodedOffset != 0
-      || utf8.endIndex.transcodedOffset != 0
-      || utf8._legacyPartialCharacters.start
-      || utf8._legacyPartialCharacters.end {
-      return nil
-    }
-    self = String(utf8._guts)
+    Builtin.unreachable()
   }
 }
 
@@ -483,7 +458,7 @@ extension String { // RangeReplaceableCollection
   // compile as Swift 4.
   @available(swift, obsoleted: 4, message: "String.init(_:String) is no longer failable")
   public init?(_ other: String, obsoletedInSwift4: () = ()) {
-    self.init(other._guts)
+    Builtin.unreachable()
   }
 }
 
@@ -498,19 +473,19 @@ extension String.UnicodeScalarView : _CustomPlaygroundQuickLookable {
 extension String.UnicodeScalarView {
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public func index(after i: Index?) -> Index {
-    return index(after: i!)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public func index(_ i: Index?,  offsetBy n: Int) -> Index {
-    return index(i!, offsetBy: n)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional indices")
   public func distance(from i: Index?, to j: Index?) -> Int {
-    return distance(from: i!, to: j!)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public subscript(i: Index?) -> Unicode.Scalar {
-    return self[i!]
+    Builtin.unreachable()
   }
 }
 
@@ -518,19 +493,19 @@ extension String.UnicodeScalarView {
 extension String.UTF16View {
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public func index(after i: Index?) -> Index {
-    return index(after: i!)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public func index(_ i: Index?, offsetBy n: Int) -> Index {
-    return index(i!, offsetBy: n)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional indices")
   public func distance(from i: Index?, to j: Index?) -> Int {
-    return distance(from: i!, to: j!)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public subscript(i: Index?) -> Unicode.UTF16.CodeUnit {
-    return self[i!]
+    Builtin.unreachable()
   }
 }
 
@@ -538,19 +513,19 @@ extension String.UTF16View {
 extension String.UTF8View {
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public func index(after i: Index?) -> Index {
-    return index(after: i!)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public func index(_ i: Index?, offsetBy n: Int) -> Index {
-    return index(i!, offsetBy: n)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional indices")
   public func distance(from i: Index?, to j: Index?) -> Int {
-    return distance(from: i!, to: j!)
+    Builtin.unreachable()
   }
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional index")
   public subscript(i: Index?) -> Unicode.UTF8.CodeUnit {
-    return self[i!]
+    Builtin.unreachable()
   }
 }
 
@@ -565,17 +540,12 @@ extension String.UTF8View {
 extension String {
   @available(swift, obsoleted: 4)
   public subscript(bounds: Range<Index>) -> String {
-    _boundsCheck(bounds)
-    return String(Substring(_slice: Slice(base: self, bounds: bounds)))
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4)
   public subscript(bounds: ClosedRange<Index>) -> String {
-    let r = bounds.relative(to: self)
-    _boundsCheck(r)
-    return String(Substring(_slice: Slice(
-          base: self,
-          bounds: r)))
+    Builtin.unreachable()
   }
 }
 
@@ -591,22 +561,14 @@ extension String {
 // more-specific Swift-3-only `subscript` overload that continues to produce
 // `String.UnicodeScalarView`.
 extension String.UnicodeScalarView {
-  private subscript(_bounds bounds: Range<Index>) -> String.UnicodeScalarView {
-    let rawSubRange: Range<Int> =
-      _toCoreIndex(bounds.lowerBound)..<_toCoreIndex(bounds.upperBound)
-    return String.UnicodeScalarView(
-      _guts._extractSlice(rawSubRange),
-      coreOffset: bounds.lowerBound.encodedOffset)
-  }
-
   @available(swift, obsoleted: 4)
   public subscript(bounds: Range<Index>) -> String.UnicodeScalarView {
-    return self[_bounds: bounds]
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4)
   public subscript(bounds: ClosedRange<Index>) -> String.UnicodeScalarView {
-    return self[_bounds: bounds.relative(to: self)]
+    Builtin.unreachable()
   }
 }
 
@@ -619,21 +581,14 @@ extension String.UnicodeScalarView {
 // Swift-3-only `subscript` overload that continues to produce
 // `String.UTF16View`.
 extension String.UTF16View {
-  private subscript(_bounds bounds: Range<Index>) -> String.UTF16View {
-    return String.UTF16View(
-      _guts,
-      offset: _internalIndex(at: bounds.lowerBound.encodedOffset),
-      length: bounds.upperBound.encodedOffset - bounds.lowerBound.encodedOffset)
-  }
-
   @available(swift, obsoleted: 4)
   public subscript(bounds: Range<Index>) -> String.UTF16View {
-    return self[_bounds: bounds]
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4)
   public subscript(bounds: ClosedRange<Index>) -> String.UTF16View {
-    return self[_bounds: bounds.relative(to: self)]
+    Builtin.unreachable()
   }
 }
 
@@ -646,45 +601,14 @@ extension String.UTF16View {
 /// Swift-3-only `subscript` overload that continues to produce
 /// `String.UTF8View`.
 extension String.UTF8View {
-  private subscript(_bounds bounds: Range<Index>) -> String.UTF8View {
-    let wholeString = String(_guts)
-    let legacyPartialCharacters = (
-      (self._legacyPartialCharacters.start &&
-        bounds.lowerBound.encodedOffset == 0) ||
-      bounds.lowerBound.samePosition(in: wholeString) == nil,
-      (self._legacyPartialCharacters.end &&
-        bounds.upperBound.encodedOffset == _guts.count) ||
-      bounds.upperBound.samePosition(in: wholeString) == nil)
-
-    if bounds.upperBound.transcodedOffset == 0 {
-      return String.UTF8View(
-        _guts._extractSlice(
-        bounds.lowerBound.encodedOffset..<bounds.upperBound.encodedOffset),
-        legacyOffsets: (bounds.lowerBound.transcodedOffset, 0),
-        legacyPartialCharacters: legacyPartialCharacters)
-    }
-
-    let b0 = bounds.upperBound.utf8Buffer!.first!
-    let scalarLength8 = (~b0).leadingZeroBitCount
-    let scalarLength16 = scalarLength8 == 4 ? 2 : 1
-    let coreEnd = bounds.upperBound.encodedOffset + scalarLength16
-    return String.UTF8View(
-      _guts._extractSlice(bounds.lowerBound.encodedOffset..<coreEnd),
-      legacyOffsets: (
-        bounds.lowerBound.transcodedOffset,
-        bounds.upperBound.transcodedOffset - scalarLength8),
-      legacyPartialCharacters: legacyPartialCharacters)
-  }
-  
   @available(swift, obsoleted: 4)
   public subscript(bounds: Range<Index>) -> String.UTF8View {
-    return self[_bounds: bounds]
+    Builtin.unreachable()
   }
   
-
   @available(swift, obsoleted: 4)
   public subscript(bounds: ClosedRange<Index>) -> String.UTF8View {
-    return self[_bounds: bounds.relative(to: self)]
+    Builtin.unreachable()
   }
 }
 
@@ -703,22 +627,14 @@ public typealias UnicodeScalar = Unicode.Scalar
 extension String {
   @available(swift, deprecated: 3.2, obsoleted: 4, message: "Please use 'first', 'dropFirst()', or 'Substring.popFirst()'.")
   public mutating func popFirst() -> String.Element? {
-    guard !isEmpty else { return nil }
-    let element = first!
-    let nextIdx = self.index(after: self.startIndex)
-    self = String(self[nextIdx...])
-    return element
+    Builtin.unreachable()
   }
 }
 
 extension String.UnicodeScalarView {
   @available(swift, deprecated: 3.2, obsoleted: 4, message: "Please use 'first', 'dropFirst()', or 'Substring.UnicodeScalarView.popFirst()'.")
   public mutating func popFirst() -> String.UnicodeScalarView.Element? {
-    guard !isEmpty else { return nil }
-    let element = first!
-    let nextIdx = self.index(after: self.startIndex)
-    self = String(self[nextIdx...]).unicodeScalars
-    return element
+    Builtin.unreachable()
   }
 }
 
@@ -777,16 +693,9 @@ extension Substring {
     return body(&self)
   }
   
-  private func _boundsCheck(_ range: Range<Index>) {
-    _precondition(range.lowerBound >= startIndex,
-      "String index range is out of bounds")
-    _precondition(range.upperBound <= endIndex,
-      "String index range is out of bounds")
-  }
-  
   @available(swift, obsoleted: 4)
   public subscript(bounds: ClosedRange<Index>) -> String {
-    return String(self[bounds.relative(to: self)])
+    Builtin.unreachable()
   }
 }
 
@@ -872,32 +781,32 @@ extension UnsafeMutablePointer {
 extension Strideable {
   @available(swift, deprecated: 3, obsoleted: 4, message: "Please use explicit type conversions or Strideable methods for mixed-type arithmetics.")
   public static func + (lhs: Self, rhs: Self.Stride) -> Self {
-    return lhs.advanced(by: rhs)
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3, obsoleted: 4, message: "Please use explicit type conversions or Strideable methods for mixed-type arithmetics.")
   public static func + (lhs: Self.Stride, rhs: Self) -> Self {
-    return rhs.advanced(by: lhs)
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3, obsoleted: 4, message: "Please use explicit type conversions or Strideable methods for mixed-type arithmetics.")
   public static func - (lhs: Self, rhs: Self.Stride) -> Self {
-    return lhs.advanced(by: -rhs)
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3, obsoleted: 4, message: "Please use explicit type conversions or Strideable methods for mixed-type arithmetics.")
   public static func - (lhs: Self, rhs: Self) -> Self.Stride {
-    return rhs.distance(to: lhs)
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3, obsoleted: 4, message: "Please use explicit type conversions or Strideable methods for mixed-type arithmetics.")
   public static func += (lhs: inout Self, rhs: Self.Stride) {
-    lhs = lhs.advanced(by: rhs)
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3, obsoleted: 4, message: "Please use explicit type conversions or Strideable methods for mixed-type arithmetics.")
   public static func -= (lhs: inout Self, rhs: Self.Stride) {
-    lhs = lhs.advanced(by: -rhs)
+    Builtin.unreachable()
   }
 }
 
@@ -916,7 +825,7 @@ extension UnsafeMutableRawPointer {
 }
 
 extension UnsafeRawPointer : _CustomPlaygroundQuickLookable {
-  internal var summary: String {
+  private var summary: String {
     let ptrValue = UInt64(
       bitPattern: Int64(Int(Builtin.ptrtoint_Word(_rawValue))))
     return ptrValue == 0
@@ -1056,11 +965,11 @@ extension Sequence {
     return try _compactMap(transform)
   }
 
-  @available(swift, obsoleted: 4)
+  @available(swift, obsoleted: 4.0)
   public func flatMap(
     _ transform: (Element) throws -> String
   ) rethrows -> [String] {
-    return try map(transform)
+    Builtin.unreachable()
   }
 }
 
@@ -1069,29 +978,29 @@ extension Collection {
   public func flatMap(
     _ transform: (Element) throws -> String?
   ) rethrows -> [String] {
-    return try _compactMap(transform)
+    Builtin.unreachable()
   }
 }
 
 extension String.Index {
   @available(swift, deprecated: 3.2, obsoleted: 4.0)
   public init(_position: Int) {
-    self.init(encodedOffset: _position)
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3.2, obsoleted: 4.0)
   public init(_codeUnitOffset: Int) {
-    self.init(encodedOffset: _codeUnitOffset)
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3.2, obsoleted: 4.0)
   public var _utf16Index: Int {
-    return self.encodedOffset
+    Builtin.unreachable()
   }
 
   @available(swift, deprecated: 3.2, obsoleted: 4.0)
   public var _offset: Int {
-    return self.encodedOffset
+    Builtin.unreachable()
   }
 }
 
@@ -1101,14 +1010,14 @@ extension Optional where Wrapped == String.Index {
   public static func ..<(
     lhs: String.Index?, rhs: String.Index?
   ) -> Range<String.Index> {
-    return lhs! ..< rhs!
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4.0, message: "Any String view index conversion can fail in Swift 4; please unwrap the optional indices")
   public static func ...(
     lhs: String.Index?, rhs: String.Index?
   ) -> ClosedRange<String.Index> {
-    return lhs! ... rhs!
+    Builtin.unreachable()
   }
 }
 
@@ -1186,7 +1095,7 @@ extension Dictionary {
   ///     // Prints "GH"
   @available(swift, obsoleted: 4.0)
   public var keys: LazyMapCollection<[Key: Value], Key> {
-    return self.lazy.map { $0.key }
+    Builtin.unreachable()
   }
 
   /// A collection containing just the values of the dictionary.
@@ -1206,20 +1115,14 @@ extension Dictionary {
   ///     // Prints "Ghana"
   @available(swift, obsoleted: 4.0)
   public var values: LazyMapCollection<[Key: Value], Value> {
-    return self.lazy.map { $0.value }
+    Builtin.unreachable()
   }
 
   @available(swift, obsoleted: 4.0)
   public func filter(
     _ isIncluded: (Element) throws -> Bool, obsoletedInSwift4: () = ()
   ) rethrows -> [Element] {
-    var result: [Element] = []
-    for x in self {
-      if try isIncluded(x) {
-        result.append(x)
-      }
-    }
-    return result
+    Builtin.unreachable()
   }
 }
 
@@ -1228,13 +1131,7 @@ extension Set {
   public func filter(
     _ isIncluded: (Element) throws -> Bool, obsoletedInSwift4: () = ()
   ) rethrows -> [Element] {
-    var result: [Element] = []
-    for x in self {
-      if try isIncluded(x) {
-        result.append(x)
-      }
-    }
-    return result
+    Builtin.unreachable()
   }  
 }
 
