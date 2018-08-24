@@ -1057,12 +1057,12 @@ extension Set: CustomStringConvertible, CustomDebugStringConvertible {
   /// A string that represents the contents of the set.
   @inlinable
   public var description: String {
-    return _makeCollectionDescription(for: self, withTypeName: nil)
+    return _makeCollectionDescription()
   }
 
   /// A string that represents the contents of the set, suitable for debugging.
   public var debugDescription: String {
-    return _makeCollectionDescription(for: self, withTypeName: "Set")
+    return _makeCollectionDescription(withTypeName: "Set")
   }
 }
 

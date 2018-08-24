@@ -1340,13 +1340,11 @@ extension Dictionary {
 
     @inlinable
     public var description: String {
-      return _makeCollectionDescription(for: self, withTypeName: nil)
+      return _makeCollectionDescription()
     }
 
     public var debugDescription: String {
-      return _makeCollectionDescription(
-        for: self,
-        withTypeName: "Dictionary.Keys")
+      return _makeCollectionDescription(withTypeName: "Dictionary.Keys")
     }
   }
 
@@ -1411,13 +1409,11 @@ extension Dictionary {
 
     @inlinable
     public var description: String {
-      return _makeCollectionDescription(for: self, withTypeName: nil)
+      return _makeCollectionDescription()
     }
 
     public var debugDescription: String {
-      return _makeCollectionDescription(
-        for: self,
-        withTypeName: "Dictionary.Values")
+      return _makeCollectionDescription(withTypeName: "Dictionary.Values")
     }
   }
 }
