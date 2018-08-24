@@ -70,7 +70,7 @@ extension Array : _ObjectiveCBridgeable {
       return
     }
 
-    result = _arrayForceCast([AnyObject](_cocoaArray: source))
+    result = .some(Array<AnyObject>(_cocoaArray: source) as! Array<Element>)
   }
 
   public static func _conditionallyBridgeFromObjectiveC(
@@ -78,9 +78,8 @@ extension Array : _ObjectiveCBridgeable {
     result: inout Array?
   ) -> Bool {
     // Construct the result array by conditionally bridging each element.
-    let anyObjectArr = [AnyObject](_cocoaArray: source)
+    result = Array<AnyObject>(_cocoaArray: source) as? [Element]
 
-    result = _arrayConditionalCast(anyObjectArr)
     return result != nil
   }
 
@@ -102,7 +101,7 @@ extension Array : _ObjectiveCBridgeable {
       return Array(_cocoaArray: source!)
     }
 
-    return _arrayForceCast([AnyObject](_cocoaArray: source!))
+    return Array<AnyObject>(_cocoaArray: source!) as! [Element]
   }
 }
 
