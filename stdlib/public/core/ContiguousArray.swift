@@ -573,7 +573,6 @@ extension ContiguousArray: RangeReplaceableCollection, ArrayProtocol {
     }
   }
 
-  @inline(never)
   @usableFromInline
   internal static func _allocateBufferUninitialized(
     minimumCapacity: Int

@@ -24,7 +24,6 @@ from gyb_stdlib_support import (
 
 import SwiftShims
 
-@inline(never)
 @usableFromInline
 internal func _abstract(
   file: StaticString = #file,

@@ -424,7 +424,7 @@ internal func _toStringReadOnlyStreamable<
   return result
 }
 
-@inline(never) @_effects(readonly)
+@_effects(readonly)
 @usableFromInline
 internal func _toStringReadOnlyPrintable<
   T : CustomStringConvertible
@@ -437,7 +437,6 @@ internal func _toStringReadOnlyPrintable<
 //===----------------------------------------------------------------------===//
 
 @_semantics("optimize.sil.specialize.generic.never")
-@inline(never)
 public func _debugPrint_unlocked<T, TargetStream : TextOutputStream>(
     _ value: T, _ target: inout TargetStream
 ) {

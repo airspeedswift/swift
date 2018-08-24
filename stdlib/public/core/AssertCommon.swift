@@ -59,8 +59,7 @@ func _isStdlibInternalChecksEnabled() -> Bool {
 }
 
 @usableFromInline @_transparent
-internal
-func _fatalErrorFlags() -> UInt32 {
+internal func _fatalErrorFlags() -> UInt32 {
   // The current flags are:
   // (1 << 0): Report backtrace on fatal error
 #if os(iOS) || os(tvOS) || os(watchOS)
@@ -76,7 +75,6 @@ func _fatalErrorFlags() -> UInt32 {
 /// This function should not be inlined because it is cold and inlining just
 /// bloats code.
 @usableFromInline
-@inline(never)
 internal func _assertionFailure(
   _ prefix: StaticString, _ message: StaticString,
   file: StaticString, line: UInt,
@@ -106,7 +104,6 @@ internal func _assertionFailure(
 /// This function should not be inlined because it is cold and inlining just
 /// bloats code.
 @usableFromInline
-@inline(never)
 internal func _assertionFailure(
   _ prefix: StaticString, _ message: String,
   file: StaticString, line: UInt,
@@ -136,7 +133,6 @@ internal func _assertionFailure(
 /// This function should not be inlined because it is cold and inlining just
 /// bloats code.
 @usableFromInline
-@inline(never)
 internal func _assertionFailure(
   _ prefix: StaticString, _ message: String,
   flags: UInt32
@@ -161,7 +157,6 @@ internal func _assertionFailure(
 /// This function should not be inlined because it is cold and it inlining just
 /// bloats code.
 @usableFromInline
-@inline(never)
 @_semantics("arc.programtermination_point")
 internal func _fatalErrorMessage(
   _ prefix: StaticString, _ message: StaticString,
@@ -246,7 +241,6 @@ func _unimplementedInitializer(className: StaticString,
   Builtin.int_trap()
 }
 
-@inlinable // FIXME(sil-serialize-all)
 public // COMPILER_INTRINSIC
 func _undefined<T>(
   _ message: @autoclosure () -> String = String(),
@@ -261,7 +255,6 @@ func _undefined<T>(
 /// This function should not be inlined because it is cold and inlining just
 /// bloats code. It doesn't take a source location because it's most important
 /// in release builds anyway (old apps that are run on new OSs).
-@inline(never)
 @usableFromInline // COMPILER_INTRINSIC
 internal func _diagnoseUnexpectedEnumCaseValue<SwitchedValue, RawValue>(
   type: SwitchedValue.Type,
@@ -278,7 +271,6 @@ internal func _diagnoseUnexpectedEnumCaseValue<SwitchedValue, RawValue>(
 /// This function should not be inlined because it is cold and inlining just
 /// bloats code. It doesn't take a source location because it's most important
 /// in release builds anyway (old apps that are run on new OSs).
-@inline(never)
 @usableFromInline // COMPILER_INTRINSIC
 internal func _diagnoseUnexpectedEnumCase<SwitchedValue>(
   type: SwitchedValue.Type

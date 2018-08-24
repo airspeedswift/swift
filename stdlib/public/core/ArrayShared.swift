@@ -268,7 +268,6 @@ extension _ArrayBufferProtocol {
 }
 
 extension _ArrayBufferProtocol {
-  @inline(never)
   @usableFromInline
   internal mutating func _outlinedMakeUniqueBuffer(bufferCount: Int) {
 

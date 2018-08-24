@@ -11,14 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 /// Print a string as is to stdout.
-@inlinable // FIXME(sil-serialize-all)
 public // COMPILER_INTRINSIC
 func _replPrintLiteralString(_ text: String) {
   print(text, terminator: "")
 }
 
 /// Print the debug representation of `value`, followed by a newline.
-@inline(never)
 public // COMPILER_INTRINSIC
 func _replDebugPrintln<T>(_ value: T) {
   debugPrint(value)

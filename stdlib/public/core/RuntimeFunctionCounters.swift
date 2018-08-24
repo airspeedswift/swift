@@ -285,7 +285,6 @@ internal struct _RuntimeFunctionCountersState: _RuntimeFunctionCountersStats {
   }
 
   subscript(_ index: Int) -> UInt32 {
-    @inline(never)
     get {
       if (index >= _RuntimeFunctionCounters.numRuntimeFunctionCounters) {
         fatalError("Counter index should be in the range " +
@@ -300,7 +299,6 @@ internal struct _RuntimeFunctionCountersState: _RuntimeFunctionCountersStats {
       return counter
     }
 
-    @inline(never)
     set {
       if (index >= _RuntimeFunctionCounters.numRuntimeFunctionCounters) {
         fatalError("Counter index should be in the range " +
@@ -373,7 +371,7 @@ extension _RuntimeFunctionCounters {
 
 extension _RuntimeFunctionCountersStats {
   typealias Counters = _RuntimeFunctionCounters
-  @inline(never)
+
   public // @testable
   func dump<T : TextOutputStream>(skipUnchanged: Bool, to: inout T) {
     for i in 0..<Counters.numRuntimeFunctionCounters {
@@ -388,7 +386,6 @@ extension _RuntimeFunctionCountersStats {
     }
   }
 
-  @inline(never)
   public // @testable
   func dumpDiff<T : TextOutputStream>(
     _ after: Self, skipUnchanged: Bool, to: inout T

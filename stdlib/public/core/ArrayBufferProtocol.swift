@@ -133,8 +133,6 @@ extension _ArrayBufferProtocol where Indices == Range<Int>{
     return firstElementAddress
   }
 
-  // Make sure the compiler does not inline _copyBuffer to reduce code size.
-  @inline(never)
   @usableFromInline
   internal init(copying buffer: Self) {
     let newBuffer = _ContiguousArrayBuffer<Element>(

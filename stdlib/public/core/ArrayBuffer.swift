@@ -167,7 +167,6 @@ extension _ArrayBuffer {
   // checks one element. The reason for this is that the ARC optimizer does not
   // handle loops atm. and so can get blocked by the presence of a loop (over
   // the range). This loop is not necessary for a single element access.
-  @inline(never)
   @usableFromInline
   internal func _typeCheckSlowPath(_ index: Int) {
     if _fastPath(_isNative) {
