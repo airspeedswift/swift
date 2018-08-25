@@ -660,7 +660,7 @@ internal struct _UnsafePartiallyInitializedContiguousArrayBuffer<Element> {
 
   /// Initialize the buffer with an initial size of `initialCapacity`
   /// elements.
-  @inlinable // FIXME(sil-serialize-all)
+  @inlinable
   @inline(__always) // For performance reasons.
   internal init(initialCapacity: Int) {
     if initialCapacity == 0 {
@@ -676,7 +676,7 @@ internal struct _UnsafePartiallyInitializedContiguousArrayBuffer<Element> {
   }
 
   /// Add an element to the buffer, reallocating if necessary.
-  @inlinable // FIXME(sil-serialize-all)
+  @inlinable
   @inline(__always) // For performance reasons.
   internal mutating func add(_ element: Element) {
     if remainingCapacity == 0 {
@@ -699,7 +699,7 @@ internal struct _UnsafePartiallyInitializedContiguousArrayBuffer<Element> {
   }
 
   /// Add an element to the buffer, which must have remaining capacity.
-  @inlinable // FIXME(sil-serialize-all)
+  @inlinable
   @inline(__always) // For performance reasons.
   internal mutating func addWithExistingCapacity(_ element: Element) {
     _sanityCheck(remainingCapacity > 0,
