@@ -34,6 +34,9 @@ where Indices == Range<Int> {
     initializing target: UnsafeMutablePointer<Element>
   ) -> UnsafeMutablePointer<Element>
 
+  // /// Get or set the index'th element.
+  // subscript(index: Int) -> Element { get nonmutating set }
+  //
   /// If this buffer is backed by a uniquely-referenced mutable
   /// `_ContiguousArrayBuffer` that can be grown in-place to allow the `self`
   /// buffer store `minimumCapacity` elements, returns that buffer.
