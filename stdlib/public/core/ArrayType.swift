@@ -11,19 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 @usableFromInline
-internal protocol ArrayProtocol
-  : RangeReplaceableCollection,
-    ExpressibleByArrayLiteral
-{
-  //===--- public interface -----------------------------------------------===//
-  /// The number of elements the Array stores.
-  override var count: Int { get }
-
+internal protocol _ArrayProtocol
+  : RangeReplaceableCollection, ExpressibleByArrayLiteral
+where Index == Int {
   /// The number of elements the Array can store without reallocation.
   var capacity: Int { get }
-
-  /// `true` if and only if the Array is empty.
-  override var isEmpty: Bool { get }
 
   /// An object that guarantees the lifetime of this array's elements.
   var _owner: AnyObject? { get }
@@ -32,7 +24,6 @@ internal protocol ArrayProtocol
   /// element. Otherwise, `nil`.
   var _baseAddressIfContiguous: UnsafeMutablePointer<Element>? { get }
 
-  subscript(index: Int) -> Element { get set }
 
   //===--- basic mutations ------------------------------------------------===//
 
@@ -65,14 +56,14 @@ internal protocol ArrayProtocol
 
   //===--- implementation detail  -----------------------------------------===//
 
-  associatedtype _Buffer : _ArrayBufferProtocol
+  associatedtype _Buffer: _ArrayBufferProtocol where _Buffer.Element == Element
   init(_ buffer: _Buffer)
 
   // For testing.
   var _buffer: _Buffer { get }
 }
 
-extension ArrayProtocol {
+extension _ArrayProtocol {
   // Since RangeReplaceableCollection now has a version of filter that is less
   // efficient, we should make the default implementation coming from Sequence
   // preferred.
