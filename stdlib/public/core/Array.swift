@@ -300,7 +300,7 @@
 public struct Array<Element>: _DestructorSafeContainer {
   #if _runtime(_ObjC)
   @usableFromInline
-  internal typealias _Buffer = _ArrayBuffer<Element>
+  internal typealias _Buffer = _BridgeStorage<_ContiguousArrayStorage<Element>, _NSArrayCore>
   #else
   @usableFromInline
   internal typealias _Buffer = _ContiguousArrayBuffer<Element>

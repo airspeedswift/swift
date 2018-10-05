@@ -40,7 +40,7 @@ public func _arrayForceCast<SourceElement, TargetElement>(
       if native.storesOnlyElementsOfType(TargetElement.self) {
         // A native buffer that is known to store only elements of the
         // TargetElement can be used directly
-        return Array(_buffer: src.cast(toBufferOf: TargetElement.self))
+        return Array(_buffer: cast(from: src, toBufferOf: TargetElement.self))
       }
       // Other native buffers must use deferred element type checking
       return Array(_buffer:

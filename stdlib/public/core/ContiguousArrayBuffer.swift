@@ -16,10 +16,10 @@ import SwiftShims
 @_fixed_layout
 internal struct _ContiguousArrayBuffer<Element> : _ArrayBufferProtocol {
   @usableFromInline
-  internal var _storage: __ContiguousArrayStorageBase
+  internal var _storage: __ContiguousArrayStorageBase<Element>
 
   @inlinable
-  internal init(_ storage: __ContiguousArrayStorageBase) {
+  internal init(_ storage: __ContiguousArrayStorageBase<Element>) {
     _storage = storage
   }
 }

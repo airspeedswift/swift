@@ -271,7 +271,7 @@ internal class __SwiftNativeNSArrayWithContiguousStorage {
 /// in the new runtime.
 @usableFromInline
 @_fixed_layout
-internal class __ContiguousArrayStorageBase
+internal class __ContiguousArrayStorageBase<Element>
   : __SwiftNativeNSArrayWithContiguousStorage {
 
   @usableFromInline

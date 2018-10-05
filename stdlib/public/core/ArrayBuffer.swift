@@ -14,43 +14,24 @@
 import SwiftShims
 
 @usableFromInline
-internal typealias _ArrayBridgeStorage
-  = _BridgeStorage<__ContiguousArrayStorageBase, _NSArrayCore>
+internal typealias _ArrayBuffer<T> = _BridgeStorage<_ContiguousArrayStorage<T>, _NSArrayCore>
 
-@usableFromInline
-@_fixed_layout
-internal struct _ArrayBuffer<Element> : _ArrayBufferProtocol {
-  @usableFromInline
-  internal var _storage: _ArrayBridgeStorage
-  
-  @inlinable
-  internal init(storage: _ArrayBridgeStorage) {
-    _storage = storage
-  }
-}
-
-extension _ArrayBuffer {  
+extension _BridgeStorage where NativeClass: _ArrayBufferProtocol, ObjCClass == _NSArrayCore {
   /// Create an empty buffer.
   @inlinable
   internal init() {
-    _storage = _ArrayBridgeStorage(native: _emptyArrayStorage)
+    self.init(native: NativeClass())
   }
-
+  
+  @inlinable
+  internal init(storage: NativeClass) {
+    self.init(native: storage)
+  }
+  
   @inlinable
   internal init(nsArray: _NSArrayCore) {
-    _sanityCheck(_isClassOrObjCExistential(Element.self))
-    _storage = _ArrayBridgeStorage(objC: nsArray)
-  }
-
-  /// Returns an `_ArrayBuffer<U>` containing the same elements.
-  ///
-  /// - Precondition: The elements actually have dynamic type `U`, and `U`
-  ///   is a class or `@objc` existential.
-  @inlinable
-  __consuming internal func cast<U>(toBufferOf _: U.Type) -> _ArrayBuffer<U> {
-    _sanityCheck(_isClassOrObjCExistential(Element.self))
-    _sanityCheck(_isClassOrObjCExistential(U.self))
-    return _ArrayBuffer<U>(storage: _storage)
+    _sanityCheck(_isClassOrObjCExistential(NativeClass.self))
+    self.init(objC: nsArray)
   }
 
   /// The spare bits that are set when a native array needs deferred
@@ -58,40 +39,28 @@ extension _ArrayBuffer {
   @inlinable
   internal var deferredTypeCheckMask: Int { return 1 }
   
-  /// Returns an `_ArrayBuffer<U>` containing the same elements,
-  /// deferring checking each element's `U`-ness until it is accessed.
-  ///
-  /// - Precondition: `U` is a class or `@objc` existential derived from
-  /// `Element`.
-  @inlinable
-  __consuming internal func downcast<U>(
-    toBufferWithDeferredTypeCheckOf _: U.Type
-  ) -> _ArrayBuffer<U> {
-    _sanityCheck(_isClassOrObjCExistential(Element.self))
-    _sanityCheck(_isClassOrObjCExistential(U.self))
-    
-    // FIXME: can't check that U is derived from Element pending
-    // <rdar://problem/20028320> generic metatype casting doesn't work
-    // _sanityCheck(U.self is Element.Type)
-
-    return _ArrayBuffer<U>(
-      storage: _ArrayBridgeStorage(
-        native: _native._storage, bits: deferredTypeCheckMask))
-  }
-
   @inlinable
   internal var needsElementTypeCheck: Bool {
     // NSArray's need an element typecheck when the element type isn't AnyObject
     return !_isNativeTypeChecked && !(AnyObject.self is Element.Type)
   }
-}
 
-extension _ArrayBuffer {
+  /// The spare bits that are set when a native array needs deferred
+  /// element type checking.
+  @inlinable
+  internal var deferredTypeCheckMask: Int { return 1 }
+  
+  @inlinable
+  internal var needsElementTypeCheck: Bool {
+    // NSArray's need an element typecheck when the element type isn't AnyObject
+    return !_isNativeTypeChecked && !(AnyObject.self is Element.Type)
+  }
+
   /// Adopt the storage of `source`.
   @inlinable
   internal init(_buffer source: NativeBuffer, shiftedToStartIndex: Int) {
     _sanityCheck(shiftedToStartIndex == 0, "shiftedToStartIndex must be 0")
-    _storage = _ArrayBridgeStorage(native: source._storage)
+    self.init(native: source)
   }
 
   /// `true`, if the array is native and does not need a deferred type check.
@@ -104,15 +73,15 @@ extension _ArrayBuffer {
   @inlinable
   internal mutating func isUniquelyReferenced() -> Bool {
     if !_isClassOrObjCExistential(Element.self) {
-      return _storage.isUniquelyReferenced_native_noSpareBits()
+      return isUniquelyReferenced_native_noSpareBits()
     }
 
     // This is a performance optimization. This code used to be:
     //
-    //   return _storage.isUniquelyReferencedNative() && _isNative.
+    //   return isUniquelyReferencedNative() && _isNative.
     //
     // SR-6437
-    if !_storage.isUniquelyReferencedNative() {
+    if !isUniquelyReferencedNative() {
       return false
     }
     return _isNative
@@ -155,7 +124,7 @@ extension _ArrayBuffer {
     if !_isClassOrObjCExistential(Element.self) {
       return _native
     }
-    return _fastPath(_storage.isNative) ? _native : nil
+    return _fastPath(isNative) ? _native : nil
   }
 
   // We have two versions of type check: one that takes a range and the other
@@ -461,7 +430,7 @@ extension _ArrayBuffer {
   /// An object that keeps the elements stored in this buffer alive.
   @inlinable
   internal var owner: AnyObject {
-    return _fastPath(_isNative) ? _native._storage : _nonNative
+    return _fastPath(_isNative) ? _native : _nonNative
   }
   
   /// An object that keeps the elements stored in this buffer alive.
@@ -470,7 +439,7 @@ extension _ArrayBuffer {
   @inlinable
   internal var nativeOwner: AnyObject {
     _sanityCheck(_isNative, "Expect a native array")
-    return _native._storage
+    return _native
   }
 
   /// A value that identifies the storage used by the buffer.  Two
@@ -517,7 +486,7 @@ extension _ArrayBuffer {
     if !_isClassOrObjCExistential(Element.self) {
       return true
     } else {
-      return _storage.isNative
+      return isNative
     }
   }
 
@@ -527,7 +496,7 @@ extension _ArrayBuffer {
     if !_isClassOrObjCExistential(Element.self) {
       return true
     } else {
-      return _storage.isNativeWithClearedSpareBits(deferredTypeCheckMask)
+      return isNativeWithClearedSpareBits(deferredTypeCheckMask)
     }
   }
 
@@ -538,7 +507,7 @@ extension _ArrayBuffer {
   internal var _native: NativeBuffer {
     return NativeBuffer(
       _isClassOrObjCExistential(Element.self)
-      ? _storage.nativeInstance : _storage.nativeInstance_noSpareBits)
+      ? nativeInstance : nativeInstance_noSpareBits)
   }
 
   /// Fast access to the native representation.
@@ -546,7 +515,7 @@ extension _ArrayBuffer {
   /// - Precondition: `_isNativeTypeChecked`.
   @inlinable
   internal var _nativeTypeChecked: NativeBuffer {
-    return NativeBuffer(_storage.nativeInstance_noSpareBits)
+    return NativeBuffer(nativeInstance_noSpareBits)
   }
 
   @inlinable
@@ -554,8 +523,40 @@ extension _ArrayBuffer {
     @inline(__always)
     get {
       _sanityCheck(_isClassOrObjCExistential(Element.self))
-      return _storage.objCInstance
+      return objCInstance
     }
   }
+}
+
+/// Returns an `_ArrayBuffer<U>` containing the same elements.
+///
+/// - Precondition: The elements actually have dynamic type `U`, and `U`
+///   is a class or `@objc` existential.
+@inlinable
+internal func cast<T: _ArrayBufferProtocol, U: _ArrayBufferProtocol>(
+  from: __owned _BridgeStorage<T, _NSArrayCore>, toBufferOf _: U.Type
+) -> _ArrayBuffer<U> {
+  _sanityCheck(_isClassOrObjCExistential(T.Element.self))
+  _sanityCheck(_isClassOrObjCExistential(U.Element.self))
+  return _ArrayBuffer(storage: from)
+}
+
+/// Returns an `_ArrayBuffer<U>` containing the same elements,
+/// deferring checking each element's `U`-ness until it is accessed.
+///
+/// - Precondition: `U` is a class or `@objc` existential derived from
+/// `Element`.
+@inlinable
+internal func downcast<T: _ArrayBufferProtocol, U: _ArrayBufferProtocol>(
+  from: __owned _BridgeStorage<T, _NSArrayCore>, toBufferWithDeferredTypeCheckOf _: U.Type
+) -> _ArrayBuffer<U> {
+  _sanityCheck(_isClassOrObjCExistential(Element.self))
+  _sanityCheck(_isClassOrObjCExistential(U.self))
+  
+  // FIXME: can't check that U is derived from Element pending
+  // <rdar://problem/20028320> generic metatype casting doesn't work
+  // _sanityCheck(U.self is Element.Type)
+
+  return _ArrayBuffer<U>(storage: from._native, bits: deferredTypeCheckMask)
 }
 #endif
