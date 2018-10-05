@@ -9,11 +9,6 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-//
-//  This is the class that implements the storage and object management for
-//  Swift Array.
-//
-//===----------------------------------------------------------------------===//
 
 #if _runtime(_ObjC)
 import SwiftShims
@@ -25,7 +20,16 @@ internal typealias _ArrayBridgeStorage
 @usableFromInline
 @_fixed_layout
 internal struct _ArrayBuffer<Element> : _ArrayBufferProtocol {
+  @usableFromInline
+  internal var _storage: _ArrayBridgeStorage
+  
+  @inlinable
+  internal init(storage: _ArrayBridgeStorage) {
+    _storage = storage
+  }
+}
 
+extension _ArrayBuffer {  
   /// Create an empty buffer.
   @inlinable
   internal init() {
@@ -80,15 +84,6 @@ internal struct _ArrayBuffer<Element> : _ArrayBufferProtocol {
     // NSArray's need an element typecheck when the element type isn't AnyObject
     return !_isNativeTypeChecked && !(AnyObject.self is Element.Type)
   }
-  
-  //===--- private --------------------------------------------------------===//
-  @inlinable
-  internal init(storage: _ArrayBridgeStorage) {
-    _storage = storage
-  }
-
-  @usableFromInline
-  internal var _storage: _ArrayBridgeStorage
 }
 
 extension _ArrayBuffer {

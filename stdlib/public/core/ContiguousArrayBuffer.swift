@@ -12,205 +12,19 @@
 
 import SwiftShims
 
-/// Class used whose sole instance is used as storage for empty
-/// arrays.  The instance is defined in the runtime and statically
-/// initialized.  See stdlib/runtime/GlobalObjects.cpp for details.
-/// Because it's statically referenced, it requires non-lazy realization
-/// by the Objective-C runtime.
-///
-/// NOTE: older runtimes called this _EmptyArrayStorage. The two must
-/// coexist, so it was renamed. The old name must not be used in the new
-/// runtime.
-@_fixed_layout
-@usableFromInline
-@_objc_non_lazy_realization
-internal final class __EmptyArrayStorage
-  : __ContiguousArrayStorageBase {
-
-  @inlinable
-  @nonobjc
-  internal init(_doNotCallMe: ()) {
-    _sanityCheckFailure("creating instance of __EmptyArrayStorage")
-  }
-  
-#if _runtime(_ObjC)
-  @inlinable
-  override internal func _withVerbatimBridgedUnsafeBuffer<R>(
-    _ body: (UnsafeBufferPointer<AnyObject>) throws -> R
-  ) rethrows -> R? {
-    return try body(UnsafeBufferPointer(start: nil, count: 0))
-  }
-
-  @inlinable
-  @nonobjc
-  override internal func _getNonVerbatimBridgedCount() -> Int {
-    return 0
-  }
-
-  @inlinable
-  override internal func _getNonVerbatimBridgedHeapBuffer() -> _HeapBuffer<Int, AnyObject> {
-    return _HeapBuffer<Int, AnyObject>(
-      _HeapBufferStorage<Int, AnyObject>.self, 0, 0)
-  }
-#endif
-
-  @inlinable
-  override internal func canStoreElements(ofDynamicType _: Any.Type) -> Bool {
-    return false
-  }
-
-  /// A type that every element in the array is.
-  @inlinable
-  override internal var staticElementType: Any.Type {
-    return Void.self
-  }
-}
-
-/// The empty array prototype.  We use the same object for all empty
-/// `[Native]Array<Element>`s.
-@inlinable
-internal var _emptyArrayStorage : __EmptyArrayStorage {
-  return Builtin.bridgeFromRawPointer(
-    Builtin.addressof(&_swiftEmptyArrayStorage))
-}
-
-// The class that implements the storage for a ContiguousArray<Element>
-@_fixed_layout // FIXME(sil-serialize-all)
-@usableFromInline
-internal final class _ContiguousArrayStorage<
-  Element
-> : __ContiguousArrayStorageBase {
-
-  @inlinable // FIXME(sil-serialize-all)
-  deinit {
-    _elementPointer.deinitialize(count: countAndCapacity.count)
-    _fixLifetime(self)
-  }
-
-#if _runtime(_ObjC)
-  /// If the `Element` is bridged verbatim, invoke `body` on an
-  /// `UnsafeBufferPointer` to the elements and return the result.
-  /// Otherwise, return `nil`.
-  @inlinable
-  internal final override func _withVerbatimBridgedUnsafeBuffer<R>(
-    _ body: (UnsafeBufferPointer<AnyObject>) throws -> R
-  ) rethrows -> R? {
-    var result: R?
-    try self._withVerbatimBridgedUnsafeBufferImpl {
-      result = try body($0)
-    }
-    return result
-  }
-
-  /// If `Element` is bridged verbatim, invoke `body` on an
-  /// `UnsafeBufferPointer` to the elements.
-  @inlinable
-  internal final func _withVerbatimBridgedUnsafeBufferImpl(
-    _ body: (UnsafeBufferPointer<AnyObject>) throws -> Void
-  ) rethrows {
-    if _isBridgedVerbatimToObjectiveC(Element.self) {
-      let count = countAndCapacity.count
-      let elements = UnsafeRawPointer(_elementPointer)
-        .assumingMemoryBound(to: AnyObject.self)
-      defer { _fixLifetime(self) }
-      try body(UnsafeBufferPointer(start: elements, count: count))
-    }
-  }
-
-  /// Returns the number of elements in the array.
-  ///
-  /// - Precondition: `Element` is bridged non-verbatim.
-  @inlinable
-  @nonobjc
-  override internal func _getNonVerbatimBridgedCount() -> Int {
-    _sanityCheck(
-      !_isBridgedVerbatimToObjectiveC(Element.self),
-      "Verbatim bridging should be handled separately")
-    return countAndCapacity.count
-  }
-
-  /// Bridge array elements and return a new buffer that owns them.
-  ///
-  /// - Precondition: `Element` is bridged non-verbatim.
-  @inlinable
-  override internal func _getNonVerbatimBridgedHeapBuffer() ->
-    _HeapBuffer<Int, AnyObject> {
-    _sanityCheck(
-      !_isBridgedVerbatimToObjectiveC(Element.self),
-      "Verbatim bridging should be handled separately")
-    let count = countAndCapacity.count
-    let result = _HeapBuffer<Int, AnyObject>(
-      _HeapBufferStorage<Int, AnyObject>.self, count, count)
-    let resultPtr = result.baseAddress
-    let p = _elementPointer
-    for i in 0..<count {
-      (resultPtr + i).initialize(to: _bridgeAnythingToObjectiveC(p[i]))
-    }
-    _fixLifetime(self)
-    return result
-  }
-#endif
-
-  /// Returns `true` if the `proposedElementType` is `Element` or a subclass of
-  /// `Element`.  We can't store anything else without violating type
-  /// safety; for example, the destructor has static knowledge that
-  /// all of the elements can be destroyed as `Element`.
-  @inlinable
-  internal override func canStoreElements(
-    ofDynamicType proposedElementType: Any.Type
-  ) -> Bool {
-#if _runtime(_ObjC)
-    return proposedElementType is Element.Type
-#else
-    // FIXME: Dynamic casts don't currently work without objc. 
-    // rdar://problem/18801510
-    return false
-#endif
-  }
-
-  /// A type that every element in the array is.
-  @inlinable
-  internal override var staticElementType: Any.Type {
-    return Element.self
-  }
-
-  @inlinable
-  internal final var _elementPointer : UnsafeMutablePointer<Element> {
-    return UnsafeMutablePointer(Builtin.projectTailElems(self, Element.self))
-  }
-}
-
 @usableFromInline
 @_fixed_layout
 internal struct _ContiguousArrayBuffer<Element> : _ArrayBufferProtocol {
+  @usableFromInline
+  internal var _storage: __ContiguousArrayStorageBase
 
-  /// Make a buffer with uninitialized elements.  After using this
-  /// method, you must either initialize the `count` elements at the
-  /// result's `.firstElementAddress` or set the result's `.count`
-  /// to zero.
   @inlinable
-  internal init(
-    _uninitializedCount uninitializedCount: Int,
-    minimumCapacity: Int
-  ) {
-    let realMinimumCapacity = Swift.max(uninitializedCount, minimumCapacity)
-    if realMinimumCapacity == 0 {
-      self = _ContiguousArrayBuffer<Element>()
-    }
-    else {
-      _storage = Builtin.allocWithTailElems_1(
-         _ContiguousArrayStorage<Element>.self,
-         realMinimumCapacity._builtinWordValue, Element.self)
-
-      let storageAddr = UnsafeMutableRawPointer(Builtin.bridgeToRawPointer(_storage))
-      let endAddr = storageAddr + _swift_stdlib_malloc_size(storageAddr)
-      let realCapacity = endAddr.assumingMemoryBound(to: Element.self) - firstElementAddress
-
-      _initStorageHeader(
-        count: uninitializedCount, capacity: realCapacity)
-    }
+  internal init(_ storage: __ContiguousArrayStorageBase) {
+    _storage = storage
   }
+}
 
+extension _ContiguousArrayBuffer {  
   /// Initialize using the given uninitialized `storage`.
   /// The storage is assumed to be uninitialized. The returned buffer has the
   /// body part of the storage initialized, but not the elements.
@@ -224,11 +38,6 @@ internal struct _ContiguousArrayBuffer<Element> : _ArrayBufferProtocol {
     _storage = storage
 
     _initStorageHeader(count: count, capacity: count)
-  }
-
-  @inlinable
-  internal init(_ storage: __ContiguousArrayStorageBase) {
-    _storage = storage
   }
 
   /// Initialize the body part of our storage.
@@ -504,9 +313,6 @@ internal struct _ContiguousArrayBuffer<Element> : _ArrayBufferProtocol {
     }
     return true
   }
-
-  @usableFromInline
-  internal var _storage: __ContiguousArrayStorageBase
 }
 
 /// Append the elements of `rhs` to `lhs`.
@@ -743,5 +549,202 @@ internal struct _UnsafePartiallyInitializedContiguousArrayBuffer<Element> {
     (finalResult, result) = (result, finalResult)
     remainingCapacity = 0
     return ContiguousArray(_buffer: finalResult)
+  }
+}
+
+extension _ContiguousArrayBuffer {
+  /// Make a buffer with uninitialized elements.  After using this
+  /// method, you must either initialize the `count` elements at the
+  /// result's `.firstElementAddress` or set the result's `.count`
+  /// to zero.
+  @inlinable
+  internal init(
+    _uninitializedCount uninitializedCount: Int,
+    minimumCapacity: Int
+  ) {
+    let realMinimumCapacity = Swift.max(uninitializedCount, minimumCapacity)
+    if realMinimumCapacity == 0 {
+      self = _ContiguousArrayBuffer<Element>()
+    }
+    else {
+      _storage = Builtin.allocWithTailElems_1(
+         _ContiguousArrayStorage<Element>.self,
+         realMinimumCapacity._builtinWordValue, Element.self)
+
+      let storageAddr = UnsafeMutableRawPointer(Builtin.bridgeToRawPointer(_storage))
+      let endAddr = storageAddr + _swift_stdlib_malloc_size(storageAddr)
+      let realCapacity = endAddr.assumingMemoryBound(to: Element.self) - firstElementAddress
+
+      _initStorageHeader(
+        count: uninitializedCount, capacity: realCapacity)
+    }
+  }
+}
+
+/// Class used whose sole instance is used as storage for empty
+/// arrays.  The instance is defined in the runtime and statically
+/// initialized.  See stdlib/runtime/GlobalObjects.cpp for details.
+/// Because it's statically referenced, it requires non-lazy realization
+/// by the Objective-C runtime.
+///
+/// NOTE: older runtimes called this _EmptyArrayStorage. The two must
+/// coexist, so it was renamed. The old name must not be used in the new
+/// runtime.
+@_fixed_layout
+@usableFromInline
+@_objc_non_lazy_realization
+internal final class __EmptyArrayStorage
+  : __ContiguousArrayStorageBase {
+
+  @inlinable
+  @nonobjc
+  internal init(_doNotCallMe: ()) {
+    _sanityCheckFailure("creating instance of __EmptyArrayStorage")
+  }
+  
+#if _runtime(_ObjC)
+  @inlinable
+  override internal func _withVerbatimBridgedUnsafeBuffer<R>(
+    _ body: (UnsafeBufferPointer<AnyObject>) throws -> R
+  ) rethrows -> R? {
+    return try body(UnsafeBufferPointer(start: nil, count: 0))
+  }
+
+  @inlinable
+  @nonobjc
+  override internal func _getNonVerbatimBridgedCount() -> Int {
+    return 0
+  }
+
+  @inlinable
+  override internal func _getNonVerbatimBridgedHeapBuffer() -> _HeapBuffer<Int, AnyObject> {
+    return _HeapBuffer<Int, AnyObject>(
+      _HeapBufferStorage<Int, AnyObject>.self, 0, 0)
+  }
+#endif
+
+  @inlinable
+  override internal func canStoreElements(ofDynamicType _: Any.Type) -> Bool {
+    return false
+  }
+
+  /// A type that every element in the array is.
+  @inlinable
+  override internal var staticElementType: Any.Type {
+    return Void.self
+  }
+}
+
+/// The empty array prototype.  We use the same object for all empty
+/// `[Native]Array<Element>`s.
+@inlinable
+internal var _emptyArrayStorage : __EmptyArrayStorage {
+  return Builtin.bridgeFromRawPointer(
+    Builtin.addressof(&_swiftEmptyArrayStorage))
+}
+
+// The class that implements the storage for a ContiguousArray<Element>
+@_fixed_layout // FIXME(sil-serialize-all)
+@usableFromInline
+internal final class _ContiguousArrayStorage<
+  Element
+> : __ContiguousArrayStorageBase {
+
+  @inlinable // FIXME(sil-serialize-all)
+  deinit {
+    _elementPointer.deinitialize(count: countAndCapacity.count)
+    _fixLifetime(self)
+  }
+
+#if _runtime(_ObjC)
+  /// If the `Element` is bridged verbatim, invoke `body` on an
+  /// `UnsafeBufferPointer` to the elements and return the result.
+  /// Otherwise, return `nil`.
+  @inlinable
+  internal final override func _withVerbatimBridgedUnsafeBuffer<R>(
+    _ body: (UnsafeBufferPointer<AnyObject>) throws -> R
+  ) rethrows -> R? {
+    var result: R?
+    try self._withVerbatimBridgedUnsafeBufferImpl {
+      result = try body($0)
+    }
+    return result
+  }
+
+  /// If `Element` is bridged verbatim, invoke `body` on an
+  /// `UnsafeBufferPointer` to the elements.
+  @inlinable
+  internal final func _withVerbatimBridgedUnsafeBufferImpl(
+    _ body: (UnsafeBufferPointer<AnyObject>) throws -> Void
+  ) rethrows {
+    if _isBridgedVerbatimToObjectiveC(Element.self) {
+      let count = countAndCapacity.count
+      let elements = UnsafeRawPointer(_elementPointer)
+        .assumingMemoryBound(to: AnyObject.self)
+      defer { _fixLifetime(self) }
+      try body(UnsafeBufferPointer(start: elements, count: count))
+    }
+  }
+
+  /// Returns the number of elements in the array.
+  ///
+  /// - Precondition: `Element` is bridged non-verbatim.
+  @inlinable
+  @nonobjc
+  override internal func _getNonVerbatimBridgedCount() -> Int {
+    _sanityCheck(
+      !_isBridgedVerbatimToObjectiveC(Element.self),
+      "Verbatim bridging should be handled separately")
+    return countAndCapacity.count
+  }
+
+  /// Bridge array elements and return a new buffer that owns them.
+  ///
+  /// - Precondition: `Element` is bridged non-verbatim.
+  @inlinable
+  override internal func _getNonVerbatimBridgedHeapBuffer() ->
+    _HeapBuffer<Int, AnyObject> {
+    _sanityCheck(
+      !_isBridgedVerbatimToObjectiveC(Element.self),
+      "Verbatim bridging should be handled separately")
+    let count = countAndCapacity.count
+    let result = _HeapBuffer<Int, AnyObject>(
+      _HeapBufferStorage<Int, AnyObject>.self, count, count)
+    let resultPtr = result.baseAddress
+    let p = _elementPointer
+    for i in 0..<count {
+      (resultPtr + i).initialize(to: _bridgeAnythingToObjectiveC(p[i]))
+    }
+    _fixLifetime(self)
+    return result
+  }
+#endif
+
+  /// Returns `true` if the `proposedElementType` is `Element` or a subclass of
+  /// `Element`.  We can't store anything else without violating type
+  /// safety; for example, the destructor has static knowledge that
+  /// all of the elements can be destroyed as `Element`.
+  @inlinable
+  internal override func canStoreElements(
+    ofDynamicType proposedElementType: Any.Type
+  ) -> Bool {
+#if _runtime(_ObjC)
+    return proposedElementType is Element.Type
+#else
+    // FIXME: Dynamic casts don't currently work without objc. 
+    // rdar://problem/18801510
+    return false
+#endif
+  }
+
+  /// A type that every element in the array is.
+  @inlinable
+  internal override var staticElementType: Any.Type {
+    return Element.self
+  }
+
+  @inlinable
+  internal final var _elementPointer : UnsafeMutablePointer<Element> {
+    return UnsafeMutablePointer(Builtin.projectTailElems(self, Element.self))
   }
 }
