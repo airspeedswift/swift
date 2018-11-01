@@ -96,9 +96,11 @@ extension LazyMapSequence: LazySequenceProtocol {
 /// `Collection` passed through a transform function returning `Element`.
 /// These elements are computed lazily, each time they're read, by
 /// calling the transform function on a base element.
-public typealias LazyMapCollection<T: Collection> = LazyMapSequence<T>
+public typealias LazyMapCollection<T: Collection,U> = LazyMapSequence<T,U>
 
-extension LazyMapCollection: LazyCollectionProtocol {
+extension LazyMapCollection: LazyCollectionProtocol { }
+
+extension LazyMapCollection: Collection {
   public typealias Index = Base.Index
   public typealias Indices = Base.Indices
   public typealias SubSequence = LazyMapCollection<Base.SubSequence, Element>

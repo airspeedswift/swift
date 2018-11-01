@@ -177,7 +177,7 @@ extension LazySequenceProtocol where Elements: LazySequenceProtocol {
 ///
 /// - See also: `LazySequenceProtocol`
 @_fixed_layout // lazy-performance
-public struct LazySequence<Base : Sequence>: _SequenceWrapper {
+public struct LazySequence<Base : Sequence> {
   public var _base: Base
 
   /// Creates a sequence that has the same elements as `base`, but on
@@ -186,6 +186,13 @@ public struct LazySequence<Base : Sequence>: _SequenceWrapper {
   @inlinable // lazy-performance
   internal init(_base: Base) {
     self._base = _base
+  }
+}
+
+extension LazySequence: Sequence {
+  public typealias Iterator = Base.Iterator
+  public __consuming func makeIterator() -> Iterator {
+    return _base.makeIterator()
   }
 }
 

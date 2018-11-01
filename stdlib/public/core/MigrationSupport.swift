@@ -356,22 +356,6 @@ extension LazySequenceProtocol {
   }
 }
 
-extension LazyMapCollection {
-  // This overload is needed to re-enable Swift 3 source compatibility related
-  // to a bugfix in ranking behavior of the constraint solver.
-  @available(swift, obsoleted: 4.0)
-  public static func + <
-    Other : LazyCollectionProtocol
-  >(lhs: LazyMapCollection, rhs: Other) -> [Element]
-  where Other.Element == Element {
-    var result: [Element] = []
-    result.reserveCapacity(numericCast(lhs.count + rhs.count))
-    result.append(contentsOf: lhs)
-    result.append(contentsOf: rhs)
-    return result
-  }
-}
-
 extension FloatingPoint {
   @available(swift, deprecated: 3.1, obsoleted: 4.0, message: "Please use the `abs(_:)` free function")
   public static func abs(_ x: Self) -> Self {
