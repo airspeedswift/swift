@@ -48,71 +48,9 @@ extension LazyCollectionProtocol where Elements: LazyCollectionProtocol {
 /// implemented lazily.
 ///
 /// - See also: `LazySequenceProtocol`, `LazyCollection`
-@_fixed_layout
-public struct LazyCollection<Base : Collection> {
-  /// Creates an instance with `base` as its underlying Collection
-  /// instance.
-  @inlinable
-  internal init(_base: Base) {
-    self._base = _base
-  }
+public typealias LazyCollection<T: Collection> = LazySequence<T>
 
-  @usableFromInline
-  internal var _base: Base
-} 
-
-extension LazyCollection: LazyCollectionProtocol {
-  /// The type of the underlying collection.
-  public typealias Elements = Base
-
-  /// The underlying collection.
-  @inlinable
-  public var elements: Elements { return _base }
-}
-
-/// Forward implementations to the base collection, to pick up any
-/// optimizations it might implement.
-extension LazyCollection : Sequence {
-  public typealias Element = Base.Element
-  public typealias Iterator = Base.Iterator
-
-  /// Returns an iterator over the elements of this sequence.
-  ///
-  /// - Complexity: O(1).
-  @inlinable
-  public __consuming func makeIterator() -> Iterator {
-    return _base.makeIterator()
-  }
-
-  /// A value less than or equal to the number of elements in the sequence,
-  /// calculated nondestructively.
-  ///
-  /// - Complexity: O(1) if the collection conforms to
-  ///   `RandomAccessCollection`; otherwise, O(*n*), where *n* is the length
-  ///   of the collection.
-  @inlinable
-  public var underestimatedCount: Int { return _base.underestimatedCount }
-
-  @inlinable
-  public __consuming func _copyToContiguousArray()
-     -> ContiguousArray<Base.Element> {
-    return _base._copyToContiguousArray()
-  }
-
-  @inlinable
-  public __consuming func _copyContents(
-    initializing buf: UnsafeMutableBufferPointer<Element>
-  ) -> (Iterator,UnsafeMutableBufferPointer<Element>.Index) {
-    return _base._copyContents(initializing: buf)
-  }
-
-  @inlinable
-  public func _customContainsEquatableElement(
-    _ element: Base.Element
-  ) -> Bool? {
-    return _base._customContainsEquatableElement(element)
-  }
-}
+extension LazyCollection: LazyCollectionProtocol { }
 
 extension LazyCollection : Collection {
   /// A type that represents a valid position in the collection.
@@ -121,7 +59,7 @@ extension LazyCollection : Collection {
   /// "past the end" position that's not valid for use as a subscript.
   public typealias Index = Base.Index
   public typealias Indices = Base.Indices
-  public typealias SubSequence = Slice<LazyCollection>
+  public typealias SubSequence = Slice<LazySequence>
 
   /// The position of the first element in a non-empty collection.
   ///
