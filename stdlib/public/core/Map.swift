@@ -96,44 +96,7 @@ extension LazyMapSequence: LazySequenceProtocol {
 /// `Collection` passed through a transform function returning `Element`.
 /// These elements are computed lazily, each time they're read, by
 /// calling the transform function on a base element.
-@_fixed_layout
-public struct LazyMapCollection<Base: Collection, Element> {
-  @usableFromInline
-  internal var _base: Base
-  @usableFromInline
-  internal let _transform: (Base.Element) -> Element
-
-  /// Create an instance with elements `transform(x)` for each element
-  /// `x` of base.
-  @inlinable
-  internal init(_base: Base, transform: @escaping (Base.Element) -> Element) {
-    self._base = _base
-    self._transform = transform
-  }  
-}
-
-extension LazyMapCollection: Sequence {
-  public typealias Iterator = LazyMapSequence<Base,Element>.Iterator
-
-  /// Returns an iterator over the elements of this sequence.
-  ///
-  /// - Complexity: O(1).
-  @inlinable
-  public __consuming func makeIterator() -> Iterator {
-    return Iterator(_base: _base.makeIterator(), _transform: _transform)
-  }
-
-  /// A value less than or equal to the number of elements in the sequence,
-  /// calculated nondestructively.
-  ///
-  /// - Complexity: O(1) if the collection conforms to
-  ///   `RandomAccessCollection`; otherwise, O(*n*), where *n* is the length
-  ///   of the collection.
-  @inlinable
-  public var underestimatedCount: Int {
-    return _base.underestimatedCount
-  }
-}
+public typealias LazyMapCollection<T: Collection> = LazyMapSequence<T>
 
 extension LazyMapCollection: LazyCollectionProtocol {
   public typealias Index = Base.Index
