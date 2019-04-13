@@ -20,7 +20,7 @@ public struct CollectionDifference<ChangeElement> {
   /// each `remove` refers to the offset of its `element` in the original
   /// state. Non-`nil` values of `associatedWith` refer to the offset of the
   /// complementary change.
-  @_frozen
+  @frozen
   public enum Change {
     case insert(offset: Int, element: ChangeElement, associatedWith: Int?)
     case remove(offset: Int, element: ChangeElement, associatedWith: Int?)
