@@ -1,4 +1,4 @@
-@_fixed_layout
+@frozen
 public class A<T> {
   @usableFromInline typealias Element = T
 

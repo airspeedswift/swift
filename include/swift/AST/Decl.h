@@ -3612,7 +3612,7 @@ public:
   /// Determine whether the member area of this class's metadata (which consists
   /// of field offsets and vtable entries) is to be considered opaque by clients.
   ///
-  /// Note that even @_fixed_layout classes have resilient metadata if they are
+  /// Note that even @frozen classes have resilient metadata if they are
   /// in a resilient module.
   bool hasResilientMetadata() const;
 
@@ -4899,7 +4899,7 @@ public:
   /// exposed to clients.
   /// There's a very narrow case when we would: if the decl is an instance
   /// member with an initializer expression and the parent type is
-  /// @_fixed_layout and resides in a resilient module.
+  /// @frozen and resides in a resilient module.
   bool isInitExposedToClients() const;
   
   /// Is this a special debugger variable?

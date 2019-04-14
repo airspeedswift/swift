@@ -19,7 +19,7 @@ import SwiftShims
 // NOTE: older runtimes called this class _RawSetStorage. The two
 // must coexist without a conflicting ObjC class name, so it was
 // renamed. The old name must not be used in the new runtime.
-@_fixed_layout
+@frozen
 @usableFromInline
 @_objc_non_lazy_realization
 internal class __RawSetStorage: __SwiftNativeNSSet {
@@ -110,7 +110,7 @@ internal class __RawSetStorage: __SwiftNativeNSSet {
 // NOTE: older runtimes called this class _EmptySetSingleton. The two
 // must coexist without conflicting ObjC class names, so it was renamed.
 // The old names must not be used in the new runtime.
-@_fixed_layout
+@frozen
 @usableFromInline
 internal class __EmptySetSingleton: __RawSetStorage {
   @nonobjc

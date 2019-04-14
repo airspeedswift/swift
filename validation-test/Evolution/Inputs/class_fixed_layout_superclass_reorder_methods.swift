@@ -7,7 +7,7 @@ public func getVersion() -> Int {
 }
 
 #if BEFORE
-@_fixed_layout
+@frozen
 open class Base {
   public init() {}
   open func firstMethod() -> Int {
@@ -21,7 +21,7 @@ open class Base {
   }
 }
 #else
-@_fixed_layout
+@frozen
 open class Base {
   public init() {}
   open func secondMethod() -> Int {
@@ -36,7 +36,7 @@ open class Base {
 }
 #endif
 
-@_fixed_layout
+@frozen
 public class Derived : Base {
   public override func firstMethod() -> Int {
     return 10

@@ -41,7 +41,7 @@ internal func _abstract(
 /// This iterator forwards its `next()` method to an arbitrary underlying
 /// iterator having the same `Element` type, hiding the specifics of the
 /// underlying `IteratorProtocol`.
-@_fixed_layout
+@frozen
 public struct AnyIterator<Element> {
   @usableFromInline
   internal let _box: _AnyIteratorBoxBase<Element>
@@ -115,7 +115,7 @@ extension AnyIterator: IteratorProtocol {
 extension AnyIterator: Sequence { }
 
 @usableFromInline
-@_fixed_layout
+@frozen
 internal struct _ClosureBasedIterator<Element> : IteratorProtocol {
   @inlinable
   internal init(_ body: @escaping () -> Element?) {
@@ -127,7 +127,7 @@ internal struct _ClosureBasedIterator<Element> : IteratorProtocol {
   internal let _body: () -> Element?
 }
 
-@_fixed_layout
+@frozen
 @usableFromInline
 internal class _AnyIteratorBoxBase<Element> : IteratorProtocol {
   @inlinable // FIXME(sil-serialize-all)
@@ -145,7 +145,7 @@ internal class _AnyIteratorBoxBase<Element> : IteratorProtocol {
   internal func next() -> Element? { _abstract() }
 }
 
-@_fixed_layout
+@frozen
 @usableFromInline
 internal final class _IteratorBox<
   Base : IteratorProtocol
@@ -165,7 +165,7 @@ internal final class _IteratorBox<
 
 % for Kind in ['Sequence', 'Collection', 'BidirectionalCollection', 'RandomAccessCollection']:
 
-@_fixed_layout
+@frozen
 @usableFromInline
 %   if Kind == 'Sequence':
 internal class _AnySequenceBox<Element>
@@ -423,7 +423,7 @@ internal class _AnyRandomAccessCollectionBox<Element>
 
 
 
-@_fixed_layout
+@frozen
 @usableFromInline
 internal final class _${Kind}Box<S : ${Kind}> : _Any${Kind}Box<S.Element>
 {
@@ -672,7 +672,7 @@ internal final class _${Kind}Box<S : ${Kind}> : _Any${Kind}Box<S.Element>
 % end
 
 @usableFromInline
-@_fixed_layout
+@frozen
 internal struct _ClosureBasedSequence<Iterator : IteratorProtocol> {
   @usableFromInline
   internal var _makeUnderlyingIterator: () -> Iterator
@@ -695,7 +695,7 @@ extension _ClosureBasedSequence: Sequence {
 /// An instance of `AnySequence` forwards its operations to an underlying base
 /// sequence having the same `Element` type, hiding the specifics of the
 /// underlying sequence.
-@_fixed_layout
+@frozen
 public struct AnySequence<Element> {
   @usableFromInline
   internal let _box: _AnySequenceBox<Element>
@@ -851,7 +851,7 @@ internal protocol _AnyIndexBox : class {
   func _isLess(than rhs: _AnyIndexBox) -> Bool
 }
 
-@_fixed_layout
+@frozen
 @usableFromInline
 internal final class _IndexBox<BaseIndex: Comparable>: _AnyIndexBox {
   @usableFromInline
@@ -889,7 +889,7 @@ internal final class _IndexBox<BaseIndex: Comparable>: _AnyIndexBox {
 }
 
 /// A wrapper over an underlying index that hides the specific underlying type.
-@_fixed_layout
+@frozen
 public struct AnyIndex {
   @usableFromInline
   internal var _box: _AnyIndexBox
@@ -960,7 +960,7 @@ protocol _AnyCollectionProtocol : Collection {
 /// An `${Self}` instance forwards its operations to a base collection having the
 /// same `Element` type, hiding the specifics of the underlying
 /// collection.
-@_fixed_layout
+@frozen
 public struct ${Self}<Element> {
   @usableFromInline
   internal let _box: _${Self}Box<Element>

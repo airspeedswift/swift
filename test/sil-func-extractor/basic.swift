@@ -70,7 +70,7 @@ public struct X {
   }
 }
 
-@_fixed_layout
+@frozen
 public class Vehicle {
     @usableFromInline
     var numOfWheels: Int

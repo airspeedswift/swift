@@ -1452,7 +1452,7 @@ bool VarDecl::isInitExposedToClients() const {
   if (!parent) return false;
   if (!hasInitialValue()) return false;
   if (isStatic()) return false;
-  return parent->getAttrs().hasAttribute<FixedLayoutAttr>();
+  return parent->getAttrs().hasAttribute<FrozenAttr>();
 }
 
 /// Check whether the given type representation will be
@@ -1909,8 +1909,8 @@ bool ValueDecl::isOutermostPrivateOrFilePrivateScope() const {
 }
 
 bool AbstractStorageDecl::isFormallyResilient() const {
-  // Check for an explicit @_fixed_layout attribute.
-  if (getAttrs().hasAttribute<FixedLayoutAttr>())
+  // Check for an explicit @frozen attribute.
+  if (getAttrs().hasAttribute<FrozenAttr>())
     return false;
 
   // If we're an instance property of a nominal type, query the type.
@@ -3060,9 +3060,8 @@ bool NominalTypeDecl::isFormallyResilient() const {
                             /*treatUsableFromInlineAsPublic=*/true).isPublic())
     return false;
 
-  // Check for an explicit @_fixed_layout or @frozen attribute.
-  if (getAttrs().hasAttribute<FixedLayoutAttr>() ||
-      getAttrs().hasAttribute<FrozenAttr>()) {
+  // Check for an explicit @frozen attribute.
+  if (getAttrs().hasAttribute<FrozenAttr>()) {
     return false;
   }
 

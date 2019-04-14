@@ -82,7 +82,7 @@ enum class ClassMetadataFlags {
   /// hence field offsets, generic arguments and virtual methods must be
   /// accessed relative to a metadata base global variable.
   ///
-  /// Note that a @_fixed_layout class in a resilient module still has
+  /// Note that a @frozen class in a resilient module still has
   /// resilient metadata, so any subclasses will have this flag set;
   /// to check for resilient stored property layout, check for
   /// ClassHasResilientMembers.
@@ -147,7 +147,7 @@ public:
   ///
   /// Note that ClassHasResilientAncestry or ClassHasGenericAncestry might
   /// still be true; the former means the class has resilient metadata, so
-  /// it might still be @_fixed_layout; the latter means we have a generic
+  /// it might still be @frozen; the latter means we have a generic
   /// superclass, but it doesn't mean the layout actually depends on any
   /// generic parameters.
   bool isFixedSize() const {

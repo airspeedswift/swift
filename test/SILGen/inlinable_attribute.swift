@@ -52,7 +52,7 @@ public class MyCls {
 // CHECK-LABEL: sil non_abi [transparent] [serialized] [ossa] @$s19inlinable_attribute15HasInitializersV1xSivpfi : $@convention(thin) () -> Int
 // CHECK-LABEL: sil non_abi [transparent] [serialized] [ossa] @$s19inlinable_attribute15HasInitializersV1ySivpfi : $@convention(thin) () -> Int
 
-@_fixed_layout
+@frozen
 public struct HasInitializers {
   public let x = 1234
   internal let y = 4321
@@ -78,14 +78,14 @@ public class Horse {
   _ = h.gallop
 }
 
-@_fixed_layout
+@frozen
 public class PublicBase {
   @inlinable
   public init(horse: Horse) {}
 }
 
 @usableFromInline
-@_fixed_layout
+@frozen
 class UFIBase {
   @usableFromInline
   @inlinable
@@ -98,7 +98,7 @@ class UFIBase {
 // Make sure the synthesized delegating initializer is inlinable also
 
 // CHECK-LABEL: sil [serialized] [ossa] @$s19inlinable_attribute017PublicDerivedFromC0C5horseAcA5HorseC_tcfc : $@convention(method) (@owned Horse, @owned PublicDerivedFromPublic) -> @owned PublicDerivedFromPublic
-@_fixed_layout
+@frozen
 public class PublicDerivedFromPublic : PublicBase {
   // Allow @inlinable deinits
   @inlinable deinit {}
@@ -106,13 +106,13 @@ public class PublicDerivedFromPublic : PublicBase {
 
 // CHECK-LABEL: sil [serialized] [ossa] @$s19inlinable_attribute20UFIDerivedFromPublicC5horseAcA5HorseC_tcfc : $@convention(method) (@owned Horse, @owned UFIDerivedFromPublic) -> @owned UFIDerivedFromPublic
 @usableFromInline
-@_fixed_layout
+@frozen
 class UFIDerivedFromPublic : PublicBase {
 }
 
 // CHECK-LABEL: sil [serialized] [ossa] @$s19inlinable_attribute17UFIDerivedFromUFIC5horseAcA5HorseC_tcfc : $@convention(method) (@owned Horse, @owned UFIDerivedFromUFI) -> @owned UFIDerivedFromUFI
 @usableFromInline
-@_fixed_layout
+@frozen
 class UFIDerivedFromUFI : UFIBase {
   // Allow @inlinable deinits
   @inlinable deinit {}

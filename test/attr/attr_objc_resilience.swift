@@ -23,14 +23,14 @@ extension AnotherResilientNSObjectSubclass {
   // expected-error@-1 {{extensions of classes built with library evolution support cannot contain '@objc' members}}
 }
 
-// Note: @_fixed_layout on a class only applies to the storage layout and
+// Note: @frozen on a class only applies to the storage layout and
 // not metadata, which remains resilient.
 
-@_fixed_layout
+@frozen
 @objc public class FixedLayoutNSObjectSubclass : FixedLayoutNSObjectOutsideParent {}
 // expected-error@-1 {{classes built with library evolution support cannot have explicit '@objc' subclasses because they are not directly visible from Objective-C}}
 
-@_fixed_layout
+@frozen
 public class AnotherFixedLayoutNSObjectSubclass : FixedLayoutNSObjectOutsideParent {}
 
 extension FixedLayoutNSObjectOutsideParent {

@@ -5,7 +5,7 @@ sil_stage raw
 import Builtin
 import Swift
 
-@_fixed_layout
+@frozen
 public struct S {
   public let y: Int
 }

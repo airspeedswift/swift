@@ -9,7 +9,7 @@ public func getVersion() -> Int {
 
 #if BEFORE
 
-@_fixed_layout
+@frozen
 public class AddVirtualMethod {
   public init() {}
 
@@ -24,7 +24,7 @@ public class AddVirtualMethod {
 
 #else
 
-@_fixed_layout
+@frozen
 public class AddVirtualMethod {
   // Note: methods were re-ordered, new method added in the middle
   public func secondMethod() -> Int {

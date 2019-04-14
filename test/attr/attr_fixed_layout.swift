@@ -4,12 +4,12 @@
 // RUN: not %target-swift-frontend -typecheck -swift-version 4.2 -dump-ast %s -enable-testing | %FileCheck --check-prefix=RESILIENCE-OFF %s
 
 //
-// Public types with @_fixed_layout are always fixed layout
+// Public types with @frozen are always fixed layout
 //
 
 // RESILIENCE-ON: struct_decl{{.*}}"Point" interface type='Point.Type' access=public non-resilient
 // RESILIENCE-OFF: struct_decl{{.*}}"Point" interface type='Point.Type' access=public non-resilient
-@_fixed_layout public struct Point {
+@frozen public struct Point {
   let x, y: Int
 }
 
@@ -32,7 +32,7 @@ public struct Size {
 
 // RESILIENCE-ON: struct_decl{{.*}}"UsableFromInlineStruct" interface type='UsableFromInlineStruct.Type' access=internal non-resilient
 // RESILIENCE-OFF: struct_decl{{.*}}"UsableFromInlineStruct" interface type='UsableFromInlineStruct.Type' access=internal non-resilient
-@_fixed_layout @usableFromInline struct UsableFromInlineStruct {}
+@frozen @usableFromInline struct UsableFromInlineStruct {}
 
 // RESILIENCE-ON: enum_decl{{.*}}"TaxCredit" interface type='TaxCredit.Type' access=public resilient
 // RESILIENCE-OFF: enum_decl{{.*}}"TaxCredit" interface type='TaxCredit.Type' access=public non-resilient
@@ -56,48 +56,48 @@ struct Rectangle {
 // Diagnostics
 //
 
-@_fixed_layout struct InternalStruct { // expected-note * {{declared here}}
-// expected-error@-1 {{'@_fixed_layout' attribute can only be applied to '@usableFromInline' or public declarations, but 'InternalStruct' is internal}}
+@frozen struct InternalStruct { // expected-note * {{declared here}}
+// expected-error@-1 {{'@frozen' attribute can only be applied to '@usableFromInline' or public declarations, but 'InternalStruct' is internal}}
 
-  @_fixed_layout public struct NestedStruct {}
+  @frozen public struct NestedStruct {}
 }
 
-@_fixed_layout fileprivate struct FileprivateStruct {}
-// expected-error@-1 {{'@_fixed_layout' attribute can only be applied to '@usableFromInline' or public declarations, but 'FileprivateStruct' is fileprivate}}
+@frozen fileprivate struct FileprivateStruct {}
+// expected-error@-1 {{'@frozen' attribute can only be applied to '@usableFromInline' or public declarations, but 'FileprivateStruct' is fileprivate}}
 
-@_fixed_layout private struct PrivateStruct {} // expected-note * {{declared here}}
-// expected-error@-1 {{'@_fixed_layout' attribute can only be applied to '@usableFromInline' or public declarations, but 'PrivateStruct' is private}}
+@frozen private struct PrivateStruct {} // expected-note * {{declared here}}
+// expected-error@-1 {{'@frozen' attribute can only be applied to '@usableFromInline' or public declarations, but 'PrivateStruct' is private}}
 
 
-@_fixed_layout public struct BadFields1 {
-  private var field: PrivateStruct // expected-error {{type referenced from a stored property in a '@_fixed_layout' struct must be '@usableFromInline' or public}}
+@frozen public struct BadFields1 {
+  private var field: PrivateStruct // expected-error {{type referenced from a stored property in a '@frozen' struct must be '@usableFromInline' or public}}
 }
 
-@_fixed_layout public struct BadFields2 {
-  private var field: PrivateStruct? // expected-error {{type referenced from a stored property in a '@_fixed_layout' struct must be '@usableFromInline' or public}}
+@frozen public struct BadFields2 {
+  private var field: PrivateStruct? // expected-error {{type referenced from a stored property in a '@frozen' struct must be '@usableFromInline' or public}}
 }
 
-@_fixed_layout public struct BadFields3 {
-  internal var field: InternalStruct? // expected-error {{type referenced from a stored property in a '@_fixed_layout' struct must be '@usableFromInline' or public}}
+@frozen public struct BadFields3 {
+  internal var field: InternalStruct? // expected-error {{type referenced from a stored property in a '@frozen' struct must be '@usableFromInline' or public}}
 }
 
-@_fixed_layout @usableFromInline struct BadFields4 {
-  internal var field: InternalStruct? // expected-error {{type referenced from a stored property in a '@_fixed_layout' struct must be '@usableFromInline' or public}}
+@frozen @usableFromInline struct BadFields4 {
+  internal var field: InternalStruct? // expected-error {{type referenced from a stored property in a '@frozen' struct must be '@usableFromInline' or public}}
 }
 
-@_fixed_layout public struct BadFields5 {
-  private var field: PrivateStruct? { // expected-error {{type referenced from a stored property in a '@_fixed_layout' struct must be '@usableFromInline' or public}}
+@frozen public struct BadFields5 {
+  private var field: PrivateStruct? { // expected-error {{type referenced from a stored property in a '@frozen' struct must be '@usableFromInline' or public}}
     didSet {}
   }
 }
 
 // expected-warning@+1 {{the result of a '@usableFromInline' function should be '@usableFromInline' or public}}
 @usableFromInline func notReallyUsableFromInline() -> InternalStruct? { return nil }
-@_fixed_layout public struct BadFields6 {
-  private var field = notReallyUsableFromInline() // expected-error {{type referenced from a stored property with inferred type 'InternalStruct?' in a '@_fixed_layout' struct must be '@usableFromInline' or public}}
+@frozen public struct BadFields6 {
+  private var field = notReallyUsableFromInline() // expected-error {{type referenced from a stored property with inferred type 'InternalStruct?' in a '@frozen' struct must be '@usableFromInline' or public}}
 }
 
-@_fixed_layout public struct OKFields {
+@frozen public struct OKFields {
   private var publicTy: Size
   internal var ufiTy: UsableFromInlineStruct?
 

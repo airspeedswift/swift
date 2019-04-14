@@ -19,7 +19,7 @@
 import Foundation
 import resilient_objc_class
 
-// Note: @_fixed_layout on a class only applies to the storage layout and
+// Note: @frozen on a class only applies to the storage layout and
 // not metadata, which remains resilient.
 
 // NO-STUBS-NOT: FixedLayoutNSObjectSubclass
@@ -29,7 +29,7 @@ import resilient_objc_class
 // CHECK-NEXT:   - (nonnull instancetype)init OBJC_DESIGNATED_INITIALIZER;
 // CHECK-NEXT: @end
 
-@_fixed_layout
+@frozen
 public class FixedLayoutNSObjectSubclass : FixedLayoutNSObjectOutsideParent {}
 
 // NO-STUBS-NOT: ResilientNSObjectSubclass

@@ -8,7 +8,7 @@ public protocol PublicProtocol {}
 @usableFromInline
 internal protocol InternalProtocol {}
 
-@_fixed_layout
+@frozen
 public struct PublicStruct : PublicProtocol, InternalProtocol {}
 
 public struct PublicResilientStruct : PublicProtocol, InternalProtocol {}

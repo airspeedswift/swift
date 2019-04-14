@@ -136,10 +136,10 @@ import resilient_objc_class
 open class ResilientSubclass : ResilientOutsideParent {}
 open class ResilientNSObjectSubclass : ResilientNSObjectOutsideParent {}
 
-// Note: @_fixed_layout on a class only applies to the storage layout and
+// Note: @frozen on a class only applies to the storage layout and
 // not metadata, which remains resilient.
 
-@_fixed_layout
+@frozen
 open class FixedLayoutNSObjectSubclass : FixedLayoutNSObjectOutsideParent {}
 
 extension ResilientSubclass {

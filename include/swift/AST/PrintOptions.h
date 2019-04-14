@@ -266,7 +266,6 @@ struct PrintOptions {
 
   /// List of attribute kinds that should not be printed.
   std::vector<AnyAttrKind> ExcludeAttrList = {DAK_Transparent, DAK_Effects,
-                                              DAK_FixedLayout,
                                               DAK_ShowInInterface,
                                               DAK_ImplicitlyUnwrappedOptional};
 
@@ -532,7 +531,6 @@ struct PrintOptions {
   static PrintOptions printEverything() {
     PrintOptions result = printVerbose();
     result.ExcludeAttrList.clear();
-    result.ExcludeAttrList.push_back(DAK_FixedLayout);
     result.PrintStorageRepresentationAttrs = true;
     result.AbstractAccessors = false;
     result.PrintAccess = true;

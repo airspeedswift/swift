@@ -1997,7 +1997,7 @@ bool TypeChecker::typeCheckConstructorBodyUntil(ConstructorDecl *ctor,
     }
 
     // An inlinable constructor in a class must always be delegating,
-    // unless the class is '@_fixed_layout'.
+    // unless the class is '@frozen'.
     // Note: This is specifically not using isFormallyResilient. We relax this
     // rule for classes in non-resilient modules so that they can have inlinable
     // constructors, as long as those constructors don't reference private

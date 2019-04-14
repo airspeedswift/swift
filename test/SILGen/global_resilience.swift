@@ -13,7 +13,7 @@ public var myEmptyGlobal = MyEmptyStruct()
 
 // CHECK-LABEL: sil_global @$s17global_resilience19myFixedLayoutGlobalAA13MyEmptyStructVvp : $MyEmptyStruct
 
-@_fixed_layout public var myFixedLayoutGlobal = MyEmptyStruct()
+@frozen public var myFixedLayoutGlobal = MyEmptyStruct()
 
 // Mutable addressor for resilient global
 

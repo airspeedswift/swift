@@ -1025,7 +1025,7 @@ public:
     auto *parentStruct = dyn_cast<StructDecl>(PBD->getDeclContext());
     if (!parentStruct)
       return nullptr;
-    if (!parentStruct->getAttrs().hasAttribute<FixedLayoutAttr>() ||
+    if (!parentStruct->getAttrs().hasAttribute<FrozenAttr>() ||
         PBD->isStatic() || !PBD->hasStorage()) {
       return nullptr;
     }
@@ -1057,7 +1057,7 @@ public:
       auto diagID = diag::pattern_type_not_usable_from_inline_inferred;
       if (fixedLayoutStructContext) {
         diagID =
-            diag::pattern_type_not_usable_from_inline_inferred_fixed_layout;
+            diag::pattern_type_not_usable_from_inline_inferred_frozen_layout;
       } else if (!TC.Context.isSwiftVersionAtLeast(5)) {
         diagID = diag::pattern_type_not_usable_from_inline_inferred_warn;
       }
@@ -1093,7 +1093,7 @@ public:
                         DowngradeToWarning downgradeToWarning) {
       auto diagID = diag::pattern_type_not_usable_from_inline;
       if (fixedLayoutStructContext)
-        diagID = diag::pattern_type_not_usable_from_inline_fixed_layout;
+        diagID = diag::pattern_type_not_usable_from_inline_frozen_layout;
       else if (!TC.Context.isSwiftVersionAtLeast(5))
         diagID = diag::pattern_type_not_usable_from_inline_warn;
       auto diag = TC.diagnose(TP->getLoc(), diagID, anyVar->isLet(),

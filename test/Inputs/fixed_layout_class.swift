@@ -4,7 +4,7 @@ import resilient_struct
 
 // Fixed-layout, fixed-size base class
 
-@_fixed_layout
+@frozen
 open class OutsideParent {
   public final var property: String = "OutsideParent.property"
 
@@ -28,7 +28,7 @@ open class OutsideParent {
 
 // Fixed-layout, resiliently-sized base class
 
-@_fixed_layout
+@frozen
 open class OutsideParentWithResilientProperty {
   public let p: Point
   public let s: Size
@@ -46,7 +46,7 @@ open class OutsideParentWithResilientProperty {
 
 // Fixed-layout, fixed-size subclass
 
-@_fixed_layout
+@frozen
 open class OutsideChild : OutsideParent {
   public let childProperty: Int = 0
 
@@ -64,7 +64,7 @@ open class OutsideChild : OutsideParent {
 
 // Fixed-layout, dependently-sized, generic base class
 
-@_fixed_layout
+@frozen
 open class GenericOutsideParent<A> {
   public final var property: A
   public init(property: A) {
@@ -84,7 +84,7 @@ open class GenericOutsideParent<A> {
 
 // Fixed-layout, dependently-sized, generic subclass
 
-@_fixed_layout
+@frozen
 open class GenericOutsideChild<A> : GenericOutsideParent<A> {
   public final var childProperty: A
 
@@ -108,7 +108,7 @@ open class GenericOutsideChild<A> : GenericOutsideParent<A> {
 
 // Fixed-layout, fixed-size subclass of generic class
 
-@_fixed_layout
+@frozen
 open class ConcreteOutsideChild : GenericOutsideParent<String> {
   public final var childProperty: Int = 0
 

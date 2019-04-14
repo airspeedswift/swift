@@ -142,7 +142,7 @@ public struct A {
   }
 }
 
-@_fixed_layout
+@frozen
 public struct FixedLayout {
   // NONRESILIENT-LABEL: sil_property #FixedLayout.a ()
   // RESILIENT-LABEL: sil_property #FixedLayout.a (stored_property

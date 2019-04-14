@@ -57,7 +57,6 @@ SDKContext::SDKContext(CheckerOptions Opts): Diags(SourceMgr), Opts(Opts) {
   if (checkingABI()) {
     // Add ABI-breaking-specific attributes.
     ADD(ObjC)
-    ADD(FixedLayout)
     ADD(Frozen)
     ADD(Dynamic)
   }

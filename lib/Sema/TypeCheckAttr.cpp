@@ -85,7 +85,6 @@ public:
   IGNORED_ATTR(DynamicMemberLookup)
   IGNORED_ATTR(Effects)
   IGNORED_ATTR(Exported)
-  IGNORED_ATTR(FixedLayout)
   IGNORED_ATTR(ForbidSerializingReference)
   IGNORED_ATTR(Frozen)
   IGNORED_ATTR(HasStorage)
@@ -823,7 +822,6 @@ public:
 
   void visitSpecializeAttr(SpecializeAttr *attr);
 
-  void visitFixedLayoutAttr(FixedLayoutAttr *attr);
   void visitUsableFromInlineAttr(UsableFromInlineAttr *attr);
   void visitInlinableAttr(InlinableAttr *attr);
   void visitOptimizeAttr(OptimizeAttr *attr);
@@ -1911,16 +1909,6 @@ void AttributeChecker::visitSpecializeAttr(SpecializeAttr *attr) {
                                         /*allowConcreteGenericParams=*/true);
 }
 
-void AttributeChecker::visitFixedLayoutAttr(FixedLayoutAttr *attr) {
-  auto *VD = cast<ValueDecl>(D);
-
-  if (VD->getFormalAccess() < AccessLevel::Public &&
-      !VD->getAttrs().hasAttribute<UsableFromInlineAttr>()) {
-    diagnoseAndRemoveAttr(attr, diag::fixed_layout_attr_on_internal_type,
-                          VD->getFullName(), VD->getFormalAccess());
-  }
-}
-
 void AttributeChecker::visitUsableFromInlineAttr(UsableFromInlineAttr *attr) {
   auto *VD = cast<ValueDecl>(D);
 
@@ -2422,16 +2410,26 @@ void AttributeChecker::visitImplementsAttr(ImplementsAttr *attr) {
 }
 
 void AttributeChecker::visitFrozenAttr(FrozenAttr *attr) {
-  auto *ED = cast<EnumDecl>(D);
+  if (D->getKind() == DeclKind::Enum) {
+    auto *ED = cast<EnumDecl>(D);
 
-  if (!ED->getModuleContext()->isResilient()) {
-    diagnoseAndRemoveAttr(attr, diag::enum_frozen_nonresilient, attr);
-    return;
-  }
+    if (!ED->getModuleContext()->isResilient()) {
+      diagnoseAndRemoveAttr(attr, diag::enum_frozen_nonresilient, attr);
+      return;
+    }
 
-  if (ED->getFormalAccess() < AccessLevel::Public &&
-      !ED->getAttrs().hasAttribute<UsableFromInlineAttr>()) {
-    diagnoseAndRemoveAttr(attr, diag::enum_frozen_nonpublic, attr);
+    if (ED->getFormalAccess() < AccessLevel::Public &&
+        !ED->getAttrs().hasAttribute<UsableFromInlineAttr>()) {
+      diagnoseAndRemoveAttr(attr, diag::enum_frozen_nonpublic, attr);
+    }    
+  } else {
+    auto *VD = cast<ValueDecl>(D);
+
+    if (VD->getFormalAccess() < AccessLevel::Public &&
+        !VD->getAttrs().hasAttribute<UsableFromInlineAttr>()) {
+      diagnoseAndRemoveAttr(attr, diag::fixed_layout_attr_on_internal_type,
+                            VD->getFullName(), VD->getFormalAccess());
+    }
   }
 }
 

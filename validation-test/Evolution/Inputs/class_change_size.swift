@@ -18,7 +18,7 @@ public struct ChangeSize {
   private var _version: T
 }
 
-@_fixed_layout open class ChangeFieldOffsetsOfFixedLayout {
+@frozen open class ChangeFieldOffsetsOfFixedLayout {
   public init(major: Int32, minor: Int32, patch: Int32) {
     self.major = ChangeSize(version: major)
     self.minor = ChangeSize(version: minor)
@@ -34,7 +34,7 @@ public struct ChangeSize {
   }
 }
 
-@_fixed_layout open class ChangeSizeOfSuperclass : ChangeFieldOffsetsOfFixedLayout {
+@frozen open class ChangeSizeOfSuperclass : ChangeFieldOffsetsOfFixedLayout {
   public init() {
     self.codename = "Big Bang"
 

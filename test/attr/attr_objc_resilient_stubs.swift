@@ -23,13 +23,13 @@ extension AnotherResilientNSObjectSubclass {
   @objc public func categoryTwoMethod() {}
 }
 
-// Note: @_fixed_layout on a class only applies to the storage layout and
+// Note: @frozen on a class only applies to the storage layout and
 // not metadata, which remains resilient.
 
-@_fixed_layout
+@frozen
 @objc public class FixedLayoutNSObjectSubclass : FixedLayoutNSObjectOutsideParent {}
 
-@_fixed_layout
+@frozen
 public class AnotherFixedLayoutNSObjectSubclass : FixedLayoutNSObjectOutsideParent {}
 
 extension FixedLayoutNSObjectOutsideParent {

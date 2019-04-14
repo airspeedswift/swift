@@ -169,18 +169,18 @@ enum InternalEnum {
 
 // Inherited initializers - <rdar://problem/34398148>
 @usableFromInline
-@_fixed_layout
+@frozen
 class Base {
   @usableFromInline
   init(x: Int) {}
 }
 
 @usableFromInline
-@_fixed_layout
+@frozen
 class Middle : Base {}
 
 @usableFromInline
-@_fixed_layout
+@frozen
 class Derived : Middle {
   @inlinable
   init(y: Int) {
@@ -189,17 +189,17 @@ class Derived : Middle {
 }
 
 // More inherited initializers
-@_fixed_layout
+@frozen
 public class Base2 {
   @inlinable
   public init(x: Int) {}
 }
 
-@_fixed_layout
+@frozen
 @usableFromInline
 class Middle2 : Base2 {}
 
-@_fixed_layout
+@frozen
 @usableFromInline
 class Derived2 : Middle2 {
   @inlinable
@@ -212,7 +212,7 @@ class Derived2 : Middle2 {
 //
 // Note the behavior here does not depend on the state of the -enable-library-evolution
 // flag; the test runs with both the flag on and off. Only the explicit
-// presence of a '@_fixed_layout' attribute determines the behavior here.
+// presence of a '@frozen' attribute determines the behavior here.
 
 let internalGlobal = 0
 // expected-note@-1 {{let 'internalGlobal' is not '@usableFromInline' or public}}
@@ -231,9 +231,9 @@ public struct PublicResilientStructWithInit {
 private func privateIntReturningFunc() -> Int { return 0 }
 internal func internalIntReturningFunc() -> Int { return 0 }
 
-@_fixed_layout
+@frozen
 public struct PublicFixedStructWithInit {
-  var x = internalGlobal // expected-error {{let 'internalGlobal' is internal and cannot be referenced from a property initializer in a '@_fixed_layout' type}}
+  var x = internalGlobal // expected-error {{let 'internalGlobal' is internal and cannot be referenced from a property initializer in a '@frozen' type}}
   var y = publicGlobal // OK
   static var z = privateIntReturningFunc() // OK
   static var a = internalIntReturningFunc() // OK

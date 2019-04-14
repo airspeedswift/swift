@@ -207,10 +207,7 @@ SIMPLE_DECL_ATTR(requires_stored_property_inits, RequiresStoredPropertyInits,
 SIMPLE_DECL_ATTR(nonobjc, NonObjC,
   OnExtension | OnFunc | OnAccessor | OnVar | OnSubscript | OnConstructor,
   30)
-SIMPLE_DECL_ATTR(_fixed_layout, FixedLayout,
-  OnVar | OnClass | OnStruct |
-  UserInaccessible,
-  31)
+// NOTE: 31 is unused, was @_fixed_layout
 SIMPLE_DECL_ATTR(inlinable, Inlinable,
   OnVar | OnSubscript | OnAbstractFunction,
   32)
@@ -362,7 +359,7 @@ SIMPLE_DECL_ATTR(_weakLinked, WeakLinked,
   OnSubscript | OnConstructor | OnEnumElement | OnExtension | UserInaccessible,
   75)
 SIMPLE_DECL_ATTR(frozen, Frozen,
-  OnEnum |
+  OnEnum | OnVar | OnClass | OnStruct |
   UserInaccessible,
   76)
 SIMPLE_DECL_ATTR(_forbidSerializingReference, ForbidSerializingReference,

@@ -349,7 +349,7 @@ def run():
     ... /// The `IteratorProtocol` used by `MapSequence` and `MapCollection`.
     ... /// Produces each element by passing the output of the `Base`
     ... /// `IteratorProtocol` through a transform function returning
-    ... @_fixed_layout
+    ... @frozen
     ... public struct LazyMapIterator<
     ...   Base : IteratorProtocol, Element
     ... > : IteratorProtocol, Sequence {
@@ -385,7 +385,7 @@ def run():
     ... /// `Sequence` passed through a transform function returning.
     ... /// These elements are computed lazily, each time they're read, by
     ... /// calling the transform function on a base element.
-    ... @_fixed_layout
+    ... @frozen
     ... public struct LazyMapSequence<Base : Sequence, Element>
     ...   : LazySequenceProtocol {
     ...
@@ -436,7 +436,7 @@ def run():
     ... /// `Collection` passed through a transform function returning `Elemen
     ... /// These elements are computed lazily, each time they're read, by
     ... /// calling the transform function on a base element.
-    ... @_fixed_layout
+    ... @frozen
     ... public struct LazyMapCollection<
     ...   Base : Collection, Element
     ... > : LazyCollectionProtocol,
@@ -474,7 +474,7 @@ def run():
     ... /// `Collection` passed through a transform function returning `Elemen
     ... /// These elements are computed lazily, each time they're read, by
     ... /// calling the transform function on a base element.
-    ... @_fixed_layout
+    ... @frozen
     ... public struct LazyMapBidirectionalCollection<
     ...   Base : BidirectionalCollection, Element
     ... > : LazyCollectionProtocol,
@@ -512,7 +512,7 @@ def run():
     ... /// `Collection` passed through a transform function returning `Elemen
     ... /// These elements are computed lazily, each time they're read, by
     ... /// calling the transform function on a base element.
-    ... @_fixed_layout
+    ... @frozen
     ... public struct LazyMapRandomAccessCollection<
     ...   Base : RandomAccessCollection, Element
     ... > : LazyCollectionProtocol,

@@ -16,7 +16,7 @@ import StoredProperties
 
 // COMMON: %[[BAGOFVARIABLES:T16StoredProperties14BagOfVariablesV]] = type <{ %TSi, %TSb, [{{(3|7)}} x i8], %TSi }>
 
-// This type is non-@_fixed_layout, so it becomes opaque in a resilient module
+// This type is non-@frozen, so it becomes opaque in a resilient module
 // CHECK: %[[HASSTOREDPROPERTIES:T16StoredProperties03HasaB0V]] = type <{ %TSi, %TSi, %TSb, [{{(3|7)}} x i8], %TSi, %TSb, [{{3|7}} x i8], %TSi }>
 // RESILIENT: %[[HASSTOREDPROPERTIES:swift.opaque]] = type opaque
 
@@ -99,7 +99,7 @@ func testSetting() {
 testGetting()
 testSetting()
 
-/// Test that we always use trivial access patterns for @_fixed_layout types
+/// Test that we always use trivial access patterns for @frozen types
 /// in resilient or non-resilient modules.
 
 func testFixedLayoutGetting() {

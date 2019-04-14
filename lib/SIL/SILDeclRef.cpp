@@ -312,11 +312,11 @@ SILLinkage SILDeclRef::getLinkage(ForDefinition_t forDefinition) const {
   if (isStoredPropertyInitializer()) {
     // Three cases:
     //
-    // 1) Type is formally @_fixed_layout. Root initializers can be declared
+    // 1) Type is formally @frozen. Root initializers can be declared
     //    @inlinable. The property initializer must only reference
     //    public symbols, and is serialized, so we give it PublicNonABI linkage.
     //
-    // 2) Type is not formally @_fixed_layout and the module is not resilient.
+    // 2) Type is not formally @frozen and the module is not resilient.
     //    Root initializers can be declared @inlinable. This is the annoying
     //    case. We give the initializer public linkage if the type is public.
     //
@@ -486,7 +486,7 @@ IsSerialized_t SILDeclRef::isSerialized() const {
   }
 
   // Stored property initializers are inlinable if the type is explicitly
-  // marked as @_fixed_layout.
+  // marked as @frozen.
   if (isStoredPropertyInitializer()) {
     auto *nominal = cast<NominalTypeDecl>(d->getDeclContext());
     auto scope =

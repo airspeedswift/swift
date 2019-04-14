@@ -7,7 +7,7 @@
 // RUN: %target-swift-frontend -I %t -emit-ir -enable-library-evolution %t/class_resilience.swift | %FileCheck %t/class_resilience.swift --check-prefix=CHECK --check-prefix=CHECK-%target-ptrsize --check-prefix=CHECK-%target-runtime -DINT=i%target-ptrsize
 // RUN: %target-swift-frontend -I %t -emit-ir -enable-library-evolution -O %t/class_resilience.swift
 
-// This tests @_fixed_layout classes in resilient modules.
+// This tests @frozen classes in resilient modules.
 import fixed_layout_class
 
 // CHECK-LABEL: define{{( dllexport)?}}{{( protected)?}} swiftcc void @"$s16class_resilience20useRootClassPropertyyy013fixed_layout_A0026OutsideParentWithResilientF0CF"(%T18fixed_layout_class34OutsideParentWithResilientPropertyC*)
@@ -117,7 +117,7 @@ public func callVirtualMethod(_ o: OutsideParent) {
   // CHECK: ret void
 }
 
-@_fixed_layout open class MyChildOfOutsideParent : OutsideParent {
+@frozen open class MyChildOfOutsideParent : OutsideParent {
   public func newMethod() {}
 }
 

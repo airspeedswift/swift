@@ -29,7 +29,7 @@ public struct ResilientStruct {
   }
 }
 
-@_weakLinked @_fixed_layout public class FixedLayoutClass {
+@_weakLinked @frozen public class FixedLayoutClass {
   public init() {}
 
   public func fn(_ x: Int) {}

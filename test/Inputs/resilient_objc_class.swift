@@ -69,5 +69,5 @@ open class ResilientConcreteNSObjectOutsideChild : ResilientGenericNSObjectOutsi
 
 // Fixed-layout base class
 
-@_fixed_layout
+@frozen
 open class FixedLayoutNSObjectOutsideParent: NSObject {}

@@ -1,7 +1,7 @@
 
 #if BEFORE
 
-@_fixed_layout
+@frozen
 open class AddVirtualMethod {
   public init() {}
 
@@ -12,7 +12,7 @@ open class AddVirtualMethod {
 
 #else
 
-@_fixed_layout
+@frozen
 open class AddVirtualMethod {
   public init() {}
 

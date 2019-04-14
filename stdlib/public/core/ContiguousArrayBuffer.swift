@@ -21,7 +21,7 @@ import SwiftShims
 /// NOTE: older runtimes called this _EmptyArrayStorage. The two must
 /// coexist, so it was renamed. The old name must not be used in the new
 /// runtime.
-@_fixed_layout
+@frozen
 @usableFromInline
 @_objc_non_lazy_realization
 internal final class __EmptyArrayStorage
@@ -71,7 +71,7 @@ internal var _emptyArrayStorage : __EmptyArrayStorage {
 }
 
 // The class that implements the storage for a ContiguousArray<Element>
-@_fixed_layout
+@frozen
 @usableFromInline
 internal final class _ContiguousArrayStorage<
   Element
@@ -171,7 +171,7 @@ internal final class _ContiguousArrayStorage<
 }
 
 @usableFromInline
-@_fixed_layout
+@frozen
 internal struct _ContiguousArrayBuffer<Element> : _ArrayBufferProtocol {
 
   /// Make a buffer with uninitialized elements.  After using this
@@ -652,7 +652,7 @@ internal func _copyCollectionToContiguousArray<
 /// element-by-element. The type is unsafe because it cannot be deinitialized
 /// until the buffer has been finalized by a call to `finish`.
 @usableFromInline
-@_fixed_layout
+@frozen
 internal struct _UnsafePartiallyInitializedContiguousArrayBuffer<Element> {
   @usableFromInline
   internal var result: _ContiguousArrayBuffer<Element>
