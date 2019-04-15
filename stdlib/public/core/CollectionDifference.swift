@@ -218,7 +218,7 @@ public struct CollectionDifference<ChangeElement> {
 extension CollectionDifference: Collection {
   public typealias Element = Change
 
-  @_fixed_layout
+  @frozen
   public struct Index {
     // Opaque index type is isomorphic to Int
     @usableFromInline

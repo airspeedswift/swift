@@ -41,7 +41,7 @@ internal func _isValidArraySubscript(_ index: Int, count: Int) -> Bool {
 /// NOTE: older runtimes called this
 /// _SwiftNativeNSArrayWithContiguousStorage. The two must coexist, so
 /// it was renamed. The old name must not be used in the new runtime.
-@_fixed_layout
+@frozen
 @usableFromInline
 internal class __SwiftNativeNSArrayWithContiguousStorage
   : __SwiftNativeNSArray { // Provides NSArray inheritance and native refcounting
@@ -136,7 +136,7 @@ extension __SwiftNativeNSArrayWithContiguousStorage : _NSArrayCore {
 ///
 /// Ideally instances of this class would be allocated in-line in the
 /// buffers used for Array storage.
-@_fixed_layout // FIXME(sil-serialize-all)
+@frozen // FIXME(sil-serialize-all)
 @usableFromInline
 @objc internal final class __SwiftDeferredNSArray
   : __SwiftNativeNSArrayWithContiguousStorage {
@@ -244,7 +244,7 @@ extension __SwiftNativeNSArrayWithContiguousStorage : _NSArrayCore {
 #else
 // Empty shim version for non-objc platforms.
 @usableFromInline
-@_fixed_layout
+@_fixed__layout
 internal class __SwiftNativeNSArrayWithContiguousStorage {
   @inlinable
   internal init() {}
@@ -260,7 +260,7 @@ internal class __SwiftNativeNSArrayWithContiguousStorage {
 /// two must coexist, so it was renamed. The old name must not be used
 /// in the new runtime.
 @usableFromInline
-@_fixed_layout
+@_fixed__layout
 internal class __ContiguousArrayStorageBase
   : __SwiftNativeNSArrayWithContiguousStorage {
 

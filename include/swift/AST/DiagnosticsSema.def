@@ -4066,7 +4066,7 @@ ERROR(usable_from_inline_attr_in_protocol,none,
   "an '@inlinable' function|" \
   "an '@_alwaysEmitIntoClient' function|" \
   "a default argument value|" \
-  "a property initializer in a '@_fixed_layout' type}"
+  "a property initializer in a '@frozen' type}"
 
 #define DECL_OR_ACCESSOR "%select{%0|%0 for}"
 
@@ -4118,7 +4118,7 @@ ERROR(inlinable_decl_not_public,
       (DeclBaseName, AccessLevel))
 
 ERROR(inlinable_resilient_deinit,
-      none, "deinitializer can only be '@inlinable' if the class is '@_fixed_layout'", ())
+      none, "deinitializer can only be '@inlinable' if the class is '@frozen'", ())
 
 //------------------------------------------------------------------------------
 // MARK: @_specialize diagnostics

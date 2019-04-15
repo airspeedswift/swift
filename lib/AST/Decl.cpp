@@ -1909,8 +1909,8 @@ bool ValueDecl::isOutermostPrivateOrFilePrivateScope() const {
 }
 
 bool AbstractStorageDecl::isFormallyResilient() const {
-  // Check for an explicit @_fixed_layout attribute.
-  if (getAttrs().hasAttribute<FixedLayoutAttr>())
+  // Check for an explicit @frozen attribute.
+  if (getAttrs().hasAttribute<FixedLayoutAttr>() || getAttrs().hasAttribute<Frozen>())
     return false;
 
   // If we're an instance property of a nominal type, query the type.
