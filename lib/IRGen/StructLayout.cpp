@@ -70,7 +70,7 @@ StructLayout::StructLayout(IRGenModule &IGM,
     MinimumAlign = Alignment(1);
     MinimumSize = Size(0);
     SpareBits.clear();
-    IsFixedLayout = true;
+    IsFrozen = true;
     IsKnownPOD = IsPOD;
     IsKnownBitwiseTakable = IsBitwiseTakable;
     IsKnownAlwaysFixedSize = IsFixedSize;
@@ -79,7 +79,7 @@ StructLayout::StructLayout(IRGenModule &IGM,
     MinimumAlign = builder.getAlignment();
     MinimumSize = builder.getSize();
     SpareBits = std::move(builder.getSpareBits());
-    IsFixedLayout = builder.isFixedLayout();
+    IsFrozen = builder.IsFrozen();
     IsKnownPOD = builder.isPOD();
     IsKnownBitwiseTakable = builder.isBitwiseTakable();
     IsKnownAlwaysFixedSize = builder.isAlwaysFixedSize();
@@ -93,19 +93,19 @@ StructLayout::StructLayout(IRGenModule &IGM,
 
   assert(typeToFill == nullptr || Ty == typeToFill);
 
-  // If the struct is not @_fixed_layout, it will have a dynamic
+  // If the struct is not @frozen, it will have a dynamic
   // layout outside of its resilience domain.
   if (decl) {
     if (IGM.isResilient(decl, ResilienceExpansion::Minimal))
       IsKnownAlwaysFixedSize = IsNotFixedSize;
 
-    applyLayoutAttributes(IGM, decl, IsFixedLayout, MinimumAlign);
+    applyLayoutAttributes(IGM, decl, Frozen, MinimumAlign);
   }
 }
 
 void irgen::applyLayoutAttributes(IRGenModule &IGM,
                                   NominalTypeDecl *decl,
-                                  bool IsFixedLayout,
+                                  bool Frozen,
                                   Alignment &MinimumAlign) {
   auto &Diags = IGM.Context.Diags;
 
@@ -114,7 +114,7 @@ void irgen::applyLayoutAttributes(IRGenModule &IGM,
     assert(value != 0 && ((value - 1) & value) == 0
            && "alignment not a power of two!");
     
-    if (!IsFixedLayout)
+    if (!Frozen)
       Diags.diagnose(alignment->getLocation(),
                      diag::alignment_dynamic_type_layout_unsupported);
     else if (value < MinimumAlign.getValue())
@@ -132,12 +132,12 @@ void irgen::applyLayoutAttributes(IRGenModule &IGM,
 }
 
 llvm::Constant *StructLayout::emitSize(IRGenModule &IGM) const {
-  assert(isFixedLayout());
+  assert(IsFrozen());
   return IGM.getSize(getSize());
 }
 
 llvm::Constant *StructLayout::emitAlignMask(IRGenModule &IGM) const {
-  assert(isFixedLayout());
+  assert(IsFrozen());
   return IGM.getSize(getAlignment().asSize() - Size(1));
 }
 
@@ -260,7 +260,7 @@ void StructLayoutBuilder::addFixedSizeElement(ElementLayout &elt) {
     CurSize += Size(paddingRequired);
 
     // Add the padding to the fixed layout.
-    if (isFixedLayout()) {
+    if (IsFrozen()) {
       auto paddingTy = llvm::ArrayType::get(IGM.Int8Ty, paddingRequired);
       StructFields.push_back(paddingTy);
       
@@ -271,7 +271,7 @@ void StructLayoutBuilder::addFixedSizeElement(ElementLayout &elt) {
 
   // If the overall structure so far has a fixed layout, then add
   // this as a field to the layout.
-  if (isFixedLayout()) {
+  if (IsFrozen()) {
     addElementAtFixedOffset(elt);
   // Otherwise, just remember the next non-fixed offset index.
   } else {
@@ -284,9 +284,9 @@ void StructLayoutBuilder::addNonFixedSizeElement(ElementLayout &elt) {
   // If the element is the first non-empty element to be added to the
   // structure, we can assign it a fixed offset (namely zero) despite
   // it not having a fixed size/alignment.
-  if (isFixedLayout() && CurSize.isZero()) {
+  if (IsFrozen() && CurSize.isZero()) {
     addNonFixedSizeElementAtOffsetZero(elt);
-    IsFixedLayout = false;
+    Frozen = false;
     return;
   }
 
@@ -310,7 +310,7 @@ void StructLayoutBuilder::addEmptyElement(ElementLayout &elt) {
 /// Add an element at the fixed offset of the current end of the
 /// aggregate.
 void StructLayoutBuilder::addElementAtFixedOffset(ElementLayout &elt) {
-  assert(isFixedLayout());
+  assert(IsFrozen());
   auto &eltTI = cast<FixedTypeInfo>(elt.getType());
 
   elt.completeFixed(elt.getType().isPOD(ResilienceExpansion::Maximal),
@@ -323,7 +323,7 @@ void StructLayoutBuilder::addElementAtFixedOffset(ElementLayout &elt) {
 
 /// Add an element at a non-fixed offset to the aggregate.
 void StructLayoutBuilder::addElementAtNonFixedOffset(ElementLayout &elt) {
-  assert(!isFixedLayout());
+  assert(!IsFrozen());
   elt.completeNonFixed(elt.getType().isPOD(ResilienceExpansion::Maximal),
                        NextNonFixedOffsetIndex);
   CurSpareBits.clear();
@@ -331,7 +331,7 @@ void StructLayoutBuilder::addElementAtNonFixedOffset(ElementLayout &elt) {
 
 /// Add a non-fixed-size element to the aggregate at offset zero.
 void StructLayoutBuilder::addNonFixedSizeElementAtOffsetZero(ElementLayout &elt) {
-  assert(isFixedLayout());
+  assert(IsFrozen());
   assert(!isa<FixedTypeInfo>(elt.getType()));
   assert(CurSize.isZero());
   elt.completeInitialNonFixedSize(elt.getType().isPOD(ResilienceExpansion::Maximal));
@@ -342,7 +342,7 @@ void StructLayoutBuilder::addNonFixedSizeElementAtOffsetZero(ElementLayout &elt)
 llvm::StructType *StructLayoutBuilder::getAsAnonStruct() const {
   auto ty = llvm::StructType::get(IGM.getLLVMContext(), StructFields,
                                   /*isPacked*/ true);
-  assert((!isFixedLayout()
+  assert((!IsFrozen()
           || IGM.DataLayout.getStructLayout(ty)->getSizeInBytes()
             == CurSize.getValue())
          && "LLVM size of fixed struct type does not match StructLayout size");
@@ -353,7 +353,7 @@ llvm::StructType *StructLayoutBuilder::getAsAnonStruct() const {
 void StructLayoutBuilder::setAsBodyOfStruct(llvm::StructType *type) const {
   assert(type->isOpaque());
   type->setBody(StructFields, /*isPacked*/ true);
-  assert((!isFixedLayout()
+  assert((!IsFrozen()
           || IGM.DataLayout.getStructLayout(type)->getSizeInBytes()
             == CurSize.getValue())
          && "LLVM size of fixed struct type does not match StructLayout size");
