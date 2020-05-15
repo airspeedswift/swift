@@ -2247,7 +2247,7 @@ endfunction()
 #
 #   [ARCHITECTURE architecture]
 #     Architecture to build for.
-function(_add_swift_target_executable_single module_name name)
+function(_add_swift_target_executable_single name)
   set(options)
   set(single_parameter_options
     ARCHITECTURE
@@ -2305,7 +2305,7 @@ function(_add_swift_target_executable_single module_name name)
       SWIFTEXE_SINGLE_SOURCES SWIFTEXE_SINGLE_EXTERNAL_SOURCES ${name}
       DEPENDS
         ${SWIFTEXE_SINGLE_DEPENDS}
-      MODULE_NAME ${module_name}
+      MODULE_NAME ${name}
       SDK ${SWIFTEXE_SINGLE_SDK}
       ARCHITECTURE ${SWIFTEXE_SINGLE_ARCHITECTURE}
       COMPILE_FLAGS ${SWIFTEXE_SINGLE_COMPILE_FLAGS}
@@ -2412,7 +2412,6 @@ function(add_swift_target_executable name)
           "-${SWIFT_SDK_${sdk}_LIB_SUBDIR}"
           SWIFTEXE_TARGET_DEPENDS_with_suffix)
       _add_swift_target_executable_single(
-          ${name}
           ${VARIANT_NAME}
           ${SWIFTEXE_TARGET_SOURCES}
           DEPENDS ${SWIFTEXE_TARGET_DEPENDS_with_suffix}
