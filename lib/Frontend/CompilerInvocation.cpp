@@ -547,7 +547,7 @@ static bool ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.EnableConcisePoundFile =
       Args.hasArg(OPT_enable_experimental_concise_pound_file);
   Opts.EnableForwardTrailingClosureMatching =
-      Args.hasArg(OPT_enable_experimental_trailing_closure_matching);
+      true;
 
   Opts.EnableCrossImportOverlays =
       Args.hasFlag(OPT_enable_cross_import_overlays,
