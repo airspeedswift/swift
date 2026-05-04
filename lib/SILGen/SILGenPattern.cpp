@@ -1414,14 +1414,20 @@ void PatternMatchEmission::bindVariable(Pattern *pattern, VarDecl *var,
 void PatternMatchEmission::bindBorrow(Pattern *pattern, VarDecl *var,
                                       ConsumableManagedValue value) {
   assert(value.getFinalConsumption() == CastConsumptionKind::BorrowAlways);
-  
+
   auto bindValue = value.asBorrowedOperand2(SGF, pattern).getFinalManagedValue();
+
+  // Track whether the source value was already noncopyable. If it was, we
+  // can't introduce a `copy_value` below — the move-only checker would (and
+  // should) reject it. The @guaranteed value from the enclosing borrow scope
+  // is what we want to bind directly.
+  bool sourceIsNoncopyable = bindValue.getType().isMoveOnly();
 
   // Borrow bindings of copyable type should still be no-implicit-copy.
   //
   // If we're relying on ManualOwnership for explicit-copies enforcement,
   // we don't need the MoveOnlyWrapper.
-  if (!bindValue.getType().isMoveOnly() && !SGF.B.hasManualOwnershipAttr()) {
+  if (!sourceIsNoncopyable && !SGF.B.hasManualOwnershipAttr()) {
     if (bindValue.getType().isAddress()) {
       bindValue = ManagedValue::forBorrowedAddressRValue(
         SGF.B.createCopyableToMoveOnlyWrapperAddr(pattern, bindValue.getValue()));
@@ -1432,8 +1438,18 @@ void PatternMatchEmission::bindBorrow(Pattern *pattern, VarDecl *var,
   }
 
   if (bindValue.getType().isObject()) {
-    // Create a notional copy for the borrow checker to use.
-    bindValue = bindValue.copy(SGF, pattern);
+    if (sourceIsNoncopyable) {
+      // copy_value would be illegal on a noncopyable typed value, so spill
+      // the @guaranteed value into a stack temporary via store_borrow and
+      // mark the address. The move-only checker recognizes the
+      // store_borrow + NoConsumeOrAssign pattern as a borrowed init and
+      // tracks the end_borrow as a liveness use.
+      auto temp = SGF.emitTemporaryAllocation(pattern, bindValue.getType());
+      bindValue = SGF.B.createStoreBorrow(pattern, bindValue, temp);
+    } else {
+      // Create a notional copy for the borrow checker to use.
+      bindValue = bindValue.copy(SGF, pattern);
+    }
   } else {
     bindValue = SGF.B.createOpaqueBorrowBeginAccess(pattern, bindValue);
   }
@@ -3882,6 +3898,20 @@ void SILGenFunction::emitSwitchFallthrough(FallthroughStmt *S) {
       if (value->getType().isAddressOnly(F)) {
         context->Emission.emitAddressOnlyInitialization(expected, value);
         break;
+      }
+
+      if (value->getType().isAddress() && value->getType().isMoveOnly()) {
+        // Loadable noncopyable types may arrive via address (e.g., the
+        // store_borrow + mark_unresolved_non_copyable_value pattern used
+        // for borrowing-switch payload bindings of `~Copyable` types).
+        // We can't synthesize the value to pass through the shared-case
+        // block phi argument here without copying — and copying is illegal
+        // for a noncopyable type. The
+        // `noncopyable_shared_case_block_unimplemented` diagnostic fires
+        // separately from emitSharedCaseBlocks; emit an unreachable so we
+        // don't hit the copy assertion before that diagnostic surfaces.
+        B.createUnreachable(S);
+        return;
       }
 
       SILLocation loc(var);
