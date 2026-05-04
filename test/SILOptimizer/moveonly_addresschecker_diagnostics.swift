@@ -3539,7 +3539,7 @@ public func closureVarAndDeferCaptureClassUseAfterConsume3(_ x: borrowing Klass)
 }
 
 public func closureVarAndDeferCaptureClassArgUseAfterConsume(_ x2: borrowing Klass) {
-    // expected-error @-1 {{noncopyable 'x2' cannot be consumed when captured by an escaping closure}}
+    // expected-error @-1 {{'x2' is borrowed and cannot be consumed}}
     // expected-error @-2 {{'x2' cannot be captured by an escaping closure since it is a borrowed parameter}}
     var f = {}
     f = {// expected-note {{closure capturing 'x2' here}}
@@ -3554,7 +3554,7 @@ public func closureVarAndDeferCaptureClassArgUseAfterConsume(_ x2: borrowing Kla
 }
 
 public func closureVarAndDeferCaptureClassOwnedArgUseAfterConsume(_ x2: __owned Klass) {
-    // expected-error @-1 {{noncopyable 'x2' cannot be consumed when captured by an escaping closure}}
+    // expected-error @-1 {{'x2' is borrowed and cannot be consumed}}
     var f = {}
     f = {
         defer {
@@ -3585,7 +3585,7 @@ public func closureVarAndDeferCaptureClassOwnedArgUseAfterConsume2(_ x2: consumi
 
 // TODO: MG
 public func closureVarAndDeferCaptureClassOwnedArgUseAfterConsume3(_ x2: __owned Klass) {
-    // expected-error @-1 {{noncopyable 'x2' cannot be consumed when captured by an escaping closure}}
+    // expected-error @-1 {{'x2' is borrowed and cannot be consumed}}
     var f = {}
     f = {
         defer {
@@ -3681,13 +3681,13 @@ public func closureVarAndClosureCaptureClassUseAfterConsume3(_ x: borrowing Klas
 }
 
 public func closureVarAndClosureCaptureClassArgUseAfterConsume(_ x2: borrowing Klass) {
-    // expected-error @-1 {{noncopyable 'x2' cannot be consumed when captured by an escaping closure}}
+    // expected-error @-1 {{'x2' is borrowed and cannot be consumed}}
     // expected-error @-2 {{'x2' cannot be captured by an escaping closure since it is a borrowed parameter}}
-    // expected-error @-3 {{'x2' cannot be captured by an escaping closure since it is a borrowed parameter}}
+    // expected-error @-3 {{'x2' is borrowed and cannot be consumed}}
     var f = {}
     f = {// expected-note {{closure capturing 'x2' here}}
         var g = {}
-        g = {// expected-note {{closure capturing 'x2' here}}
+        g = {
             borrowVal(x2)
             consumeVal(x2) // expected-note {{consumed here}}
             consumeVal(x2) // expected-note {{consumed here}}

@@ -51,7 +51,7 @@ func a(x: borrowing M) {
 
 func b(x: __owned M) { // expected-error {{'x' used after consume}}
     clodger({ borrow(x) }, consume: x)
-    // expected-note @-1:25 {{used here}}
+    // expected-note @-1:38 {{used here}}
     // expected-note @-2:37 {{consumed here}}
 }
 
@@ -78,7 +78,7 @@ func c2(x: consuming M) {
     consume(x)
 }
 
-func d(x: __owned M) { // expected-error {{noncopyable 'x' cannot be consumed when captured by an escaping closure}}
+func d(x: __owned M) { // expected-error {{'x' is borrowed and cannot be consumed}}
     clodger({ consume(x) })
     // expected-note @-1 {{consumed here}}
 }
