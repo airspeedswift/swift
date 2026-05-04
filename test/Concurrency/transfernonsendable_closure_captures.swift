@@ -185,10 +185,11 @@ func testMutableNoncopyableSendableStructWithNonescapingMainActorAsync() {
 
 func testNoncopyableNonsendableStructWithNonescapingMainActorAsync() {
   let x = NoncopyableStructNonsendable()
+  // expected-error @-1 {{sending 'x' risks causing data races}}
+  // expected-note @-2 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
   let _ = {
     nonescapingAsyncUse { @MainActor in
-      useValue(x) // expected-error {{sending 'x' risks causing data races}}
-      // expected-note @-1 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
+      useValue(x)
     }
   }
 }
@@ -349,9 +350,10 @@ func testMutableNoncopyableSendableStructWithNonescapingMainActorAsyncNormalCapt
 func testNoncopyableNonsendableStructWithNonescapingMainActorAsyncNormalCapture() {
   let x = NoncopyableStructNonsendable()
   let _ = { [x] in
+    // expected-error @-1 {{sending 'x' risks causing data races}}
+    // expected-note @-2 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
     nonescapingAsyncUse { @MainActor in
-      useValue(x) // expected-error {{sending 'x' risks causing data races}}
-      // expected-note @-1 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
+      useValue(x)
     }
   }
 }
@@ -360,9 +362,10 @@ func testMutableNoncopyableNonsendableStructWithNonescapingMainActorAsyncNormalC
   var x = NoncopyableStructNonsendable()
   x = NoncopyableStructNonsendable()
   let _ = { [x] in
+    // expected-error @-1 {{sending 'x' risks causing data races}}
+    // expected-note @-2 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
     nonescapingAsyncUse { @MainActor in
-      useValue(x) // expected-error {{sending 'x' risks causing data races}}
-      // expected-note @-1 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
+      useValue(x)
     }
   }
 }

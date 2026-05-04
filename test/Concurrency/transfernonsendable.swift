@@ -509,10 +509,11 @@ extension MyActor {
 
 func testNoncopyableNonsendableStructWithNonescapingMainActorAsync() {
   let x = NoncopyableStructNonsendable()
+  // expected-warning @-1 {{sending 'x' risks causing data races}}
+  // expected-note @-2 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
   let _ = {
     nonescapingAsyncClosure { @MainActor in
-      useValueNoncopyable(x) // expected-warning {{sending 'x' risks causing data races}}
-      // expected-note @-1 {{task-isolated 'x' is captured by a main actor-isolated closure. main actor-isolated uses in closure may race against later nonisolated uses}}
+      useValueNoncopyable(x)
     }
   }
 }
