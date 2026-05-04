@@ -825,6 +825,15 @@ void SILGenFunction::emitCaptures(SILLocation loc,
                 MarkUnresolvedNonCopyableValueInst::CheckKind::
                     NoConsumeOrAssign);
           }
+          // For a noncopyable capture going into a guaranteed parameter,
+          // borrow the address rather than copying it; load [copy] is illegal
+          // on a noncopyable typed value.
+          if (canGuarantee) {
+            auto borrowed = B.createLoadBorrow(
+                loc, ManagedValue::forBorrowedAddressRValue(val));
+            capturedArgs.push_back(borrowed);
+            break;
+          }
         }
         val = emitLoad(loc, val, tl, SGFContext(), IsNotTake).forward(*this);
       }
@@ -1062,13 +1071,45 @@ SILGenFunction::emitClosureValue(SILLocation loc, SILDeclRef constant,
   bool hasErasedIsolation =
     typeContext.ExpectedLoweredType->hasErasedIsolation();
 
+  // If the destination type is non-escaping and any capture is a noncopyable
+  // value captured by-value (CaptureKind::Constant), we must form the closure
+  // as an on-stack partial_apply with a borrowed capture: copying a noncopyable
+  // value is illegal, and the only way to pass one to a partial_apply is by
+  // guaranteed, which in turn requires [on_stack]. Other capture kinds
+  // (Box/ImmutableBox/StorageAddress) handle noncopyable captures via paths
+  // that don't copy the underlying value, so we leave them alone.
+  bool useOnStackPartialApply = false;
+  if (typeContext.ExpectedLoweredType->isNoEscape()) {
+    auto expansion = getTypeExpansionContext();
+    for (auto capture : loweredCaptureInfo.getCaptures()) {
+      if (capture.isDynamicSelfMetadata() || capture.isOpaqueValue() ||
+          capture.isPackElement())
+        continue;
+      auto *vd = dyn_cast<VarDecl>(capture.getDecl());
+      if (!vd)
+        continue;
+      auto type = FunctionDC->mapTypeIntoEnvironment(
+          vd->getInterfaceType()->getReferenceStorageReferent());
+      if (!type->isNoncopyable())
+        continue;
+      if (SGM.Types.getDeclCaptureKind(capture, expansion) ==
+          CaptureKind::Constant) {
+        useOnStackPartialApply = true;
+        break;
+      }
+    }
+  }
+
   ManagedValue result;
   if (loweredCaptureInfo.getCaptures().empty() && !subs &&
       !hasErasedIsolation) {
     result = ManagedValue::forObjectRValueWithoutOwnership(functionRef);
   } else {
     SmallVector<ManagedValue, 4> capturedArgs;
-    emitCaptures(loc, constant, CaptureEmission::PartialApplication,
+    emitCaptures(loc, constant,
+                 useOnStackPartialApply
+                     ? CaptureEmission::ImmediateApplication
+                     : CaptureEmission::PartialApplication,
                  capturedArgs);
 
     // Compute the erased isolation
@@ -1077,21 +1118,30 @@ SILGenFunction::emitClosureValue(SILLocation loc, SILDeclRef constant,
       isolation = emitClosureIsolation(loc, constant, capturedArgs);
     }
 
-    // The partial application takes ownership of the context parameters.
+    // The partial application takes ownership of the context parameters when
+    // it's escaping. For an on-stack partial_apply we keep cleanups in place
+    // so borrowed captures stay valid for the closure's stack lifetime.
     SmallVector<SILValue, 4> forwardedArgs;
-    if (hasErasedIsolation)
-      forwardedArgs.push_back(isolation.forward(*this));
-    for (auto capture : capturedArgs)
-      forwardedArgs.push_back(capture.forward(*this));
+    if (hasErasedIsolation) {
+      forwardedArgs.push_back(useOnStackPartialApply
+                                  ? isolation.getValue()
+                                  : isolation.forward(*this));
+    }
+    for (auto capture : capturedArgs) {
+      forwardedArgs.push_back(useOnStackPartialApply ? capture.getValue()
+                                                     : capture.forward(*this));
+    }
 
     auto calleeConvention = ParameterConvention::Direct_Guaranteed;
 
     auto resultIsolation =
         (hasErasedIsolation ? SILFunctionTypeIsolation::forErased()
                             : SILFunctionTypeIsolation::forUnknown());
-    auto toClosure =
-      B.createPartialApply(loc, functionRef, subs, forwardedArgs,
-                           calleeConvention, resultIsolation);
+    auto toClosure = B.createPartialApply(
+        loc, functionRef, subs, forwardedArgs, calleeConvention,
+        resultIsolation,
+        useOnStackPartialApply ? PartialApplyInst::OnStackKind::OnStack
+                               : PartialApplyInst::OnStackKind::NotOnStack);
     result = emitManagedRValueWithCleanup(toClosure);
   }
 

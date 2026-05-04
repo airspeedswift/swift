@@ -834,8 +834,8 @@ func testGlobalAssign() {
 //
 // CHECK:   [[FN:%.*]] = function_ref @$s8moveonly49checkMarkUnresolvedNonCopyableValueInstOnCaptured1xyAA2FDVn_tFyyXEfU_ : $@convention(thin) @substituted <τ_0_0> (@guaranteed FD) -> @out τ_0_0 for <()>
 // CHECK:   [[MARK:%.*]] = mark_unresolved_non_copyable_value [no_consume_or_assign] [[PROJECT]]
-// CHECK:   [[VALUE:%.*]] = load [copy] [[MARK]]
-// CHECK:   [[CLOSURE:%.*]] = partial_apply [callee_guaranteed] [[FN]]([[VALUE]])
+// CHECK:   [[VALUE:%.*]] = load_borrow [[MARK]]
+// CHECK:   [[CLOSURE:%.*]] = partial_apply [callee_guaranteed] [on_stack] [[FN]]([[VALUE]])
 // CHECK: } // end sil function '$s8moveonly49checkMarkUnresolvedNonCopyableValueInstOnCaptured1xyAA2FDVn_tF'
 func checkMarkUnresolvedNonCopyableValueInstOnCaptured(x: __owned FD) {
     func clodger<T>(_: () -> T) {}
@@ -2635,8 +2635,9 @@ func testSelfCaptureHandledCorrectly() {
         // CHECK: bb0([[ARG:%.*]] : @guaranteed $Test):
         // CHECK:   [[COPY:%.*]] = copy_value [[ARG]]
         // CHECK:   [[MARK:%.*]] = mark_unresolved_non_copyable_value [no_consume_or_assign] [[COPY]]
-        // CHECK:   [[COPY2:%.*]] = copy_value [[MARK]]
-        // CHECK:   [[PAI:%.*]] = partial_apply [callee_guaranteed] {{%.*}}([[COPY2]])
+        // CHECK:   [[BORROW:%.*]] = begin_borrow [[MARK]]
+        // CHECK:   [[PAI:%.*]] = partial_apply [callee_guaranteed] [on_stack] {{%.*}}([[BORROW]])
+        // CHECK:   end_borrow [[BORROW]]
         // CHECK:   destroy_value [[MARK]]
         // CHECK: } // end sil function '$s8moveonly31testSelfCaptureHandledCorrectlyyyF4TestL_V27captureByNonEscapingClosureyyF'
         func captureByNonEscapingClosure() {

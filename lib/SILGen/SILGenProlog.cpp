@@ -1309,7 +1309,10 @@ static void emitCaptureArguments(SILGenFunction &SGF,
     // VarDecl as an lvalue, even in the closure's use.  As such, we need to
     // allow formation of the address for this captured value.  Create a
     // temporary within the closure to provide this address.
-    if (VD->isSettable(VD->getDeclContext())) {
+    //
+    // For noncopyable captures we cannot copy into a fresh slot; the
+    // moveonly handling below spills via store_borrow instead.
+    if (VD->isSettable(VD->getDeclContext()) && !val.getType().isMoveOnly()) {
       auto addr = SGF.emitTemporary(VD, lowering);
       // We have created a copy that needs to be destroyed.
       val = SGF.B.emitCopyValueOperation(Loc, val);
@@ -1334,10 +1337,26 @@ static void emitCaptureArguments(SILGenFunction &SGF,
     // is because closures can be invoked multiple times which is inconsistent
     // with consuming the move only type.
     if (val.getType().isMoveOnly()) {
-      val = val.ensurePlusOne(SGF, Loc);
-      val = SGF.B.createMarkUnresolvedNonCopyableValueInst(
-          Loc, val,
-          MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign);
+      if (val.getType().isObject() && !val.getType().isMoveOnlyWrapped()) {
+        // For a genuinely noncopyable @guaranteed parameter, spill into a
+        // stack temporary via store_borrow so the binding is address-typed
+        // and the move-only checker recognizes the borrowed initialization.
+        // Copying (ensurePlusOne) would be illegal on a noncopyable value.
+        // Moveonly-wrapped (copyable-as-noncopyable) values can still be
+        // copied at the SIL level after stripping the wrapper, so they take
+        // the original path so existing diagnostics keep firing.
+        auto temp = SGF.emitTemporaryAllocation(Loc, val.getType());
+        auto storeBorrow = SGF.B.createStoreBorrow(Loc, val, temp);
+        val = SGF.B.createMarkUnresolvedNonCopyableValueInst(
+            Loc, storeBorrow,
+            MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign,
+            MarkUnresolvedNonCopyableValueInst::IsStrict);
+      } else {
+        val = val.ensurePlusOne(SGF, Loc);
+        val = SGF.B.createMarkUnresolvedNonCopyableValueInst(
+            Loc, val,
+            MarkUnresolvedNonCopyableValueInst::CheckKind::NoConsumeOrAssign);
+      }
     }
 
     arg = val.getValue();
