@@ -196,6 +196,28 @@ public:
   void emitAddressEscapingClosureCaptureLoadedAndConsumed(
       MarkUnresolvedNonCopyableValueInst *markedValue);
 
+  /// Emit a diagnostic for a noncopyable binding whose address is a borrowed
+  /// init (typically introduced by SILGen's `bindBorrow` spill of a switch
+  /// payload bound under a `borrowing` switch).
+  ///
+  /// Emits one `'<name>' is borrowed and cannot be consumed` error per
+  /// binding plus one `consumed here` note per consume site.
+  ///
+  /// Two modes, depending on the dispatch site:
+  ///   - `consumeUser` non-null: emit a note for that specific instruction.
+  ///     Use from paths that have an explicit consuming operand in hand and
+  ///     no canonicalizer state (e.g. `memInstMustConsume` / `copy_addr`).
+  ///   - `consumeUser` null + `canonicalizer` populated: walk the
+  ///     canonicalizer's consume uses and emit a note per site. Use from
+  ///     the `load [copy]` path, which sets up a fresh
+  ///     `OSSACanonicalizer::LivenessState` for each load.
+  ///
+  /// Idempotent across multiple invocations on the same `markedValue`: the
+  /// error fires once; notes accumulate, deduplicated by use.
+  void emitAddressBorrowedConsumedDiagnostic(
+      MarkUnresolvedNonCopyableValueInst *markedValue,
+      SILInstruction *consumeUser = nullptr);
+
   /// Try to emit a diagnostic for a load/consume from an
   /// assignable_but_not_consumable access to a global or a class field. Returns
   /// false if we did not find something we pattern matched as being either of

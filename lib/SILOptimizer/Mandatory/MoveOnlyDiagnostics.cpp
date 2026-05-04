@@ -760,6 +760,46 @@ void DiagnosticEmitter::emitAddressEscapingClosureCaptureLoadedAndConsumed(
   registerDiagnosticEmitted(markedValue);
 }
 
+void DiagnosticEmitter::emitAddressBorrowedConsumedDiagnostic(
+    MarkUnresolvedNonCopyableValueInst *markedValue,
+    SILInstruction *consumeUser) {
+  auto &astContext = fn->getASTContext();
+
+  // Emit the error once per binding.
+  if (!emittedDiagnosticForValue(markedValue)) {
+    SmallString<64> varName;
+    getVariableNameForValue(markedValue, varName);
+    diagnose(astContext, markedValue,
+             diag::sil_movechecking_guaranteed_value_consumed, varName);
+    registerDiagnosticEmitted(markedValue);
+  }
+
+  // Explicit-user mode: one `consumed here` note for the passed user.
+  if (consumeUser && useWithDiagnostic.insert(consumeUser).second) {
+    diagnose(astContext, consumeUser,
+             diag::sil_movechecking_consuming_use_here);
+  }
+
+  // Canonicalizer-walked mode: one `consumed here` note per site, deduped.
+  // Used by the `load [copy]` dispatch site, which populates the
+  // canonicalizer with this load's consume uses (the apply / etc. that
+  // consumed the loaded value, not the load itself).
+  if (canonicalizer) {
+    auto emitNotes = [&](ArrayRef<SILInstruction *> users) {
+      for (auto *user : users) {
+        if (OSSACanonicalizer::isPartialApplyUser(user))
+          continue;
+        if (!useWithDiagnostic.insert(user).second)
+          continue;
+        diagnose(astContext, user,
+                 diag::sil_movechecking_consuming_use_here);
+      }
+    };
+    emitNotes(getCanonicalizer().consumingUsesNeedingCopy);
+    emitNotes(getCanonicalizer().consumingBoundaryUsers);
+  }
+}
+
 void DiagnosticEmitter::emitPromotedBoxArgumentError(
     MarkUnresolvedNonCopyableValueInst *markedValue, SILFunctionArgument *arg) {
   auto &astContext = fn->getASTContext();

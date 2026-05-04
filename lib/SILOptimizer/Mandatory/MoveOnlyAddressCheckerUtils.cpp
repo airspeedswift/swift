@@ -2131,6 +2131,22 @@ GatherUsesVisitor::visitTransitiveUseAsEndPointUse(Operand *op) {
 // mayWriteToMemory and just call that instead. Possibly add additional
 // verification that visitAccessPathUses recognizes all instructions that may
 // propagate pointers (even though they don't write).
+
+/// Returns true if `markedValue` looks like the spill produced by SILGen's
+/// `bindBorrow` for a noncopyable `let`-binding under a `borrowing` switch:
+/// a `[strict] [no_consume_or_assign]` mark whose operand (after stripping
+/// access markers) is a `store_borrow`. The `[strict]` flag is set only by
+/// borrow-binding emission paths in SILGen (see SILGenPattern.cpp and
+/// SILGenDecl.cpp); combined with the `store_borrow` shape this uniquely
+/// identifies the spill, distinguishing it from incidental `store_borrow`
+/// uses.
+static bool
+isNoncopyableBorrowBindingSpill(MarkUnresolvedNonCopyableValueInst *markedValue) {
+  if (!markedValue->isStrict())
+    return false;
+  return isa<StoreBorrowInst>(stripAccessMarkers(markedValue->getOperand()));
+}
+
 bool GatherUsesVisitor::visitUse(Operand *op) {
   // If this operand is for a dependent type, then it does not actually access
   // the operand's address value. It only uses the metatype defined by the
@@ -2309,6 +2325,21 @@ bool GatherUsesVisitor::visitUse(Operand *op) {
           continue;
         }
 
+        if (isNoncopyableBorrowBindingSpill(markedValue)) {
+          // The address came from a `bindBorrow` spill — the binding is
+          // borrowed (typically a `let` payload binding under a `borrowing`
+          // switch). Emit the user-friendly "borrowed and cannot be
+          // consumed" + per-use "consumed here" pair instead of the generic
+          // captured-by-closure-or-non-Escapable diagnostic.
+          LLVM_DEBUG(llvm::dbgs()
+                     << "Found mark must check [nocopy] consume of borrowed "
+                        "init: "
+                     << *user);
+          diagnosticEmitter.emitAddressBorrowedConsumedDiagnostic(
+              markedValue, user);
+          continue;
+        }
+
         LLVM_DEBUG(llvm::dbgs()
                    << "Found mark must check [nocopy] error: " << *user);
         diagnosticEmitter.emitAddressDiagnosticNoCopy(markedValue, copyAddr);
@@ -2462,6 +2493,17 @@ bool GatherUsesVisitor::visitUse(Operand *op) {
           return true;
         }
 
+        // Match the `bindBorrow` spill — typical pattern is a `let` binding
+        // under a `borrowing` switch (SILGen emits `alloc_stack` +
+        // `store_borrow` + `[strict]` mark). Use canonicalizer-mode (no
+        // explicit user) so notes point at the actual consume sites
+        // populated for this `load [copy]`.
+        if (isNoncopyableBorrowBindingSpill(markedValue)) {
+          moveChecker.diagnosticEmitter
+              .emitAddressBorrowedConsumedDiagnostic(markedValue);
+          return true;
+        }
+
         // Finally try to emit either a global or class field error...
         if (!moveChecker.diagnosticEmitter
                  .emitGlobalOrClassFieldLoadedAndConsumed(markedValue)) {
@@ -2590,6 +2632,13 @@ bool GatherUsesVisitor::visitUse(Operand *op) {
       if (fArg && fArg->isClosureCapture() && fArg->getType().isAddress()) {
         moveChecker.diagnosticEmitter.emitPromotedBoxArgumentError(markedValue,
                                                                    fArg);
+      } else if (isNoncopyableBorrowBindingSpill(markedValue)) {
+        // Match the `bindBorrow` spill — typical pattern is a `let` binding
+        // under a `borrowing` switch (SILGen emits `alloc_stack` +
+        // `store_borrow` + `[strict]` mark). Use the explicit-user helper
+        // since this dispatch site doesn't have a populated canonicalizer.
+        moveChecker.diagnosticEmitter.emitAddressBorrowedConsumedDiagnostic(
+            markedValue, op->getUser());
       } else {
         moveChecker.diagnosticEmitter
             .emitAddressEscapingClosureCaptureLoadedAndConsumed(markedValue);
