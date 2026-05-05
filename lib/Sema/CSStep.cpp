@@ -117,6 +117,34 @@ void SplitterStep::computeFollowupSteps(
     return;
   }
 
+  // Splitting a constraint graph into independent components only pays off
+  // when those components contain disjunctions (overload sets, conformance
+  // choices, etc.) whose combinatorial explosion the splitter is designed
+  // to prune. With no disjunctions every component has a single
+  // deterministic solution, and the per-iteration replay/finalize overhead
+  // in `mergePartialSolutions()` is pure cost — quadratic in the number
+  // of components.
+  //
+  // Splitting still produces nicer diagnostics on small expressions even
+  // without disjunctions, so only bail out when the component count is
+  // large enough that the bookkeeping overhead dominates. The threshold
+  // is empirical: at 4000 components the splitter spends ~95% of its
+  // memory on solution copies; at the dozens-of-components scale the
+  // overhead is negligible.
+  bool anyDisjunctions = false;
+  for (const auto &component : components) {
+    if (component.getNumDisjunctions() > 0) {
+      anyDisjunctions = true;
+      break;
+    }
+  }
+  static constexpr unsigned ManyComponentsThreshold = 100;
+  if (!anyDisjunctions && numComponents >= ManyComponentsThreshold) {
+    steps.push_back(std::make_unique<ComponentStep>(
+        CS, 0, &CS.InactiveConstraints, Solutions));
+    return;
+  }
+
   if (CS.isDebugMode()) {
     auto &log = getDebugLogger();
     auto indent = CS.solverState->getCurrentIndent();
