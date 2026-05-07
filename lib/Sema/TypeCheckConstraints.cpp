@@ -1038,6 +1038,27 @@ TypeChecker::coerceToRValue(ASTContext &Context, Expr *expr,
   Type exprTy = getType(expr);
   ASSERT(exprTy);
 
+  // Walk into pack expansions to update the pattern subexpression. A pack
+  // expansion's own type does not always surface an lvalue pattern, so the
+  // `hasLValueType()` short-circuit below would otherwise leave an lvalue
+  // pattern in place. Recursing here preserves the "load only when an
+  // rvalue is required" contract: inout/lvalue contexts never call
+  // `coerceToRValue` and so still see (and diagnose) an lvalue pattern.
+  if (auto *expansion = dyn_cast<PackExpansionExpr>(expr)) {
+    if (auto *pattern = expansion->getPatternExpr()) {
+      auto *coercedPattern = coerceToRValue(Context, pattern, getType, setType);
+      if (coercedPattern != pattern) {
+        expansion->setPatternExpr(coercedPattern);
+        if (auto *expansionTy = exprTy->getAs<PackExpansionType>()) {
+          setType(expansion,
+                  PackExpansionType::get(getType(coercedPattern),
+                                         expansionTy->getCountType()));
+        }
+      }
+    }
+    return expansion;
+  }
+
   // If the type is already materializable, then we're already done.
   if (!exprTy->hasLValueType())
     return expr;
