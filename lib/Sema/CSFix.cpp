@@ -2340,7 +2340,17 @@ bool IgnoreUnresolvedPatternVar::diagnose(const Solution &solution,
   // An unresolved AnyPatternDecl means there was some issue in the match
   // that means we couldn't infer the pattern. We don't have a diagnostic to
   // emit here, the failure should be diagnosed by the fix for expression.
+  // If no such fix exists, `diagnoseFallback` takes over.
   return false;
+}
+
+bool IgnoreUnresolvedPatternVar::diagnoseFallback(
+    const Solution &solution) const {
+  if (!P)
+    return false;
+  auto &ctx = solution.getDC()->getASTContext();
+  ctx.Diags.diagnose(P->getLoc(), diag::cannot_infer_type_for_pattern);
+  return true;
 }
 
 IgnoreUnresolvedPatternVar *

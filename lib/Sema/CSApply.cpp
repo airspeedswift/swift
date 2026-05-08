@@ -9105,6 +9105,21 @@ bool ConstraintSystem::applySolutionFixes(const Solution &solution) {
     }
   }
 
+  // If no fix in the primary round produced a user-visible diagnostic, give
+  // each fix a chance to emit a fallback. This exists for fixes whose
+  // `diagnose` defers to a sibling (e.g. `IgnoreUnresolvedPatternVar`
+  // explicitly defers to "the fix for expression") — when that sibling
+  // doesn't materialize, the fallback round is what keeps the solver from
+  // falling through to `failed_to_produce_diagnostic`.
+  if (!diagnosedAnyErrors) {
+    for (auto *fix : solution.Fixes) {
+      if (fix->diagnoseFallback(solution)) {
+        diagnosedAnyErrors = true;
+        break;
+      }
+    }
+  }
+
   return diagnosedAnyErrors;
 }
 

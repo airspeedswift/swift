@@ -563,6 +563,17 @@ public:
   virtual bool diagnose(const Solution &solution,
                         bool asNote = false) const = 0;
 
+  /// Emit a fallback diagnostic for this fix. Only invoked by
+  /// `applySolutionFixes` when no fix in the solution produced a diagnostic
+  /// via the primary `diagnose` round. Silent fixes that `diagnose` returns
+  /// false from should override this to emit something actionable, rather
+  /// than letting the driver fall through to `failed_to_produce_diagnostic`.
+  ///
+  /// Default: no fallback.
+  virtual bool diagnoseFallback(const Solution &solution) const {
+    return false;
+  }
+
   using CommonFixesArray =
       ArrayRef<std::pair<const Solution *, const ConstraintFix *>>;
 
@@ -3117,9 +3128,12 @@ public:
 };
 
 class IgnoreUnresolvedPatternVar final : public ConstraintFix {
+  Pattern *P;
+
   IgnoreUnresolvedPatternVar(ConstraintSystem &cs, Pattern *pattern,
                              ConstraintLocator *locator)
-      : ConstraintFix(cs, FixKind::IgnoreUnresolvedPatternVar, locator) {}
+      : ConstraintFix(cs, FixKind::IgnoreUnresolvedPatternVar, locator),
+        P(pattern) {}
 
 public:
   std::string getName() const override {
@@ -3127,6 +3141,12 @@ public:
   }
 
   bool diagnose(const Solution &solution, bool asNote = false) const override;
+
+  /// If nothing else in the solution produced a user-visible diagnostic,
+  /// emit the generic `cannot_infer_type_for_pattern` at the pattern's loc
+  /// rather than letting the driver fall through to
+  /// `failed_to_produce_diagnostic`.
+  bool diagnoseFallback(const Solution &solution) const override;
 
   bool diagnoseForAmbiguity(CommonFixesArray commonFixes) const override {
     return diagnose(*commonFixes.front().first);
