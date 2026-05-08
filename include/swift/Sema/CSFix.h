@@ -3117,9 +3117,12 @@ public:
 };
 
 class IgnoreUnresolvedPatternVar final : public ConstraintFix {
+  Pattern *P;
+
   IgnoreUnresolvedPatternVar(ConstraintSystem &cs, Pattern *pattern,
                              ConstraintLocator *locator)
-      : ConstraintFix(cs, FixKind::IgnoreUnresolvedPatternVar, locator) {}
+      : ConstraintFix(cs, FixKind::IgnoreUnresolvedPatternVar, locator),
+        P(pattern) {}
 
 public:
   std::string getName() const override {

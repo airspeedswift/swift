@@ -2337,10 +2337,34 @@ IgnoreResultBuilderWithReturnStmts::create(ConstraintSystem &cs, Type builderTy,
 
 bool IgnoreUnresolvedPatternVar::diagnose(const Solution &solution,
                                           bool asNote) const {
-  // An unresolved AnyPatternDecl means there was some issue in the match
-  // that means we couldn't infer the pattern. We don't have a diagnostic to
-  // emit here, the failure should be diagnosed by the fix for expression.
-  return false;
+  // The type variable for this pattern binding could not be inferred. In the
+  // common case a sibling diagnostic (a tuple-arity fix, an unresolved-name
+  // lookup, a missing-member error, etc.) produces a concrete message for
+  // the same source; defer to it so we don't double-emit.
+  auto &ctx = solution.getDC()->getASTContext();
+  if (ctx.Diags.hadAnyError())
+    return true;
+
+  // If a sibling constraint fix on the same expression will emit its own
+  // diagnostic, defer to that too.
+  for (auto *other : solution.Fixes) {
+    if (other == this)
+      continue;
+    if (llvm::isa<IgnoreUnresolvedPatternVar>(other))
+      continue;
+    if (other->getAnchor() == getAnchor())
+      return false;
+  }
+
+  if (asNote || !P)
+    return false;
+
+  // Otherwise, fall back to the generic "type annotation missing in pattern"
+  // diagnostic at the pattern's location — better than reaching the
+  // `failed_to_produce_diagnostic` placeholder, which is the outcome when
+  // every fix in the solution defers.
+  ctx.Diags.diagnose(P->getLoc(), diag::cannot_infer_type_for_pattern);
+  return true;
 }
 
 IgnoreUnresolvedPatternVar *
