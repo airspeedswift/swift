@@ -240,6 +240,9 @@ enum class BridgedLinkage {
 // =========================================================================//
 
 SWIFT_IMPORT_UNSAFE BRIDGED_INLINE
+BridgedResultInfoArray SILFunctionType_getResults(BridgedCanType);
+
+SWIFT_IMPORT_UNSAFE BRIDGED_INLINE
 BridgedResultInfoArray SILFunctionType_getResultsWithError(BridgedCanType);
 
 BRIDGED_INLINE SwiftInt
