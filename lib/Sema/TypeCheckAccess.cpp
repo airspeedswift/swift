@@ -2697,6 +2697,12 @@ public:
       auto *valueMember = dyn_cast<ValueDecl>(member);
       if (!valueMember)
         return false;
+      // A member implementation of an `@objc @implementation` extension is
+      // exposed via the ObjC `@interface`, not the Swift API surface, so it
+      // can't leak the extended type. A `final`/`@nonobjc`/`@override` member
+      // is not an impl member and still requires the check.
+      if (valueMember->isObjCMemberImplementation())
+        return false;
       return isExported(valueMember) == ExportedLevel::Exported;
     });
 

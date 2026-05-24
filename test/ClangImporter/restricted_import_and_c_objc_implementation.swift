@@ -86,6 +86,9 @@ public func stillUnusableFromInlinable() { }
 
 @objc @implementation
 extension ObjCImplClass { // expected-error {{cannot use class 'ObjCImplClass' in an extension with public or '@usableFromInline' members; 'Lib' was not imported publicly}}
+  // rdar://110719676: impl members (incl. a synthesized `init`) don't subject
+  // the extended type to the exportability check; the error above fires only
+  // in the ERRORS build, from the non-impl `final public` member below.
   var point: MyPoint
 
   public init(point: MyPoint) {
