@@ -86,5 +86,7 @@ func testPrimaries(
   takePrimaryCollections(setOfStrings, setOfInts)
   takePrimaryCollections(setOfStrings, arrayOfInts)
   _ = takeMatchedPrimaryCollections(arrayOfInts, setOfInts)
-  _ = takeMatchedPrimaryCollections(arrayOfInts, setOfStrings) // expected-error{{failed to produce diagnostic for expression}}
+  _ = takeMatchedPrimaryCollections(arrayOfInts, setOfStrings)
+  // expected-error@-1 {{cannot convert value of type 'Set<String>' to expected argument type 'Set<Int>'}}
+  // expected-note@-2 {{arguments to generic parameter 'Element' ('String' and 'Int') are expected to be equal}}
 }

@@ -28,6 +28,7 @@ extension S4 where T == (outer: Int, y: Int) {
 }
 
 public func rdar85263844_2(_ x: [Int]) -> S4<(outer: Int, y: Int)> {
-  // FIXME: Bad error message.
-  S4(x.map { (inner: $0, y: $0) }) // expected-error {{failed to produce diagnostic for expression}}
+  S4(x.map { (inner: $0, y: $0) })
+  // expected-error@-1 {{initializer 'init(_:)' requires the types '(outer: Int, y: Int)' and 'Array<(inner: Int, y: Int)>.Element' (aka '(inner: Int, y: Int)') be equivalent}}
+  // expected-note@16 {{where 'T' = '(outer: Int, y: Int)', 'S.Element' = 'Array<(inner: Int, y: Int)>.Element' (aka '(inner: Int, y: Int)')}}
 }

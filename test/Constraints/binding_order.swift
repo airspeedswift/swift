@@ -68,13 +68,21 @@ do {
   func perform4<S: Sequence>(_: S) where S.Element == Any.Type? {}
   perform4([Undo.self, Cut.self, Copy.self])
 
-  // expected-error@+1 {{failed to produce diagnostic for expression; please submit a bug report}}
   let _: [Int: any Command] = Dictionary(
     uniqueKeysWithValues: [Undo(), Cut(), Copy(), Paste()].map { ($0.name, $0) })
+    // expected-error@-1 {{cannot convert value of type '[(String, Copy)]' to expected argument type '[(Int, any Command)]'}}
+    // expected-note@-2 {{arguments to generic parameter 'Element' ('(String, Copy)' and '(Int, any Command)') are expected to be equal}}
+    // expected-error@-3 {{cannot convert value of type 'Undo' to expected element type 'Copy'}}
+    // expected-error@-4 {{cannot convert value of type 'Cut' to expected element type 'Copy'}}
+    // expected-error@-5 {{cannot convert value of type 'Paste' to expected element type 'Copy'}}
 
-  // expected-error@+1 {{failed to produce diagnostic for expression; please submit a bug report}}
   let _: [Int: (any Command)?] = Dictionary(
     uniqueKeysWithValues: [Undo(), Cut(), Copy(), Paste()].map { ($0.name, $0) })
+    // expected-error@-1 {{cannot convert value of type '[(String, Copy)]' to expected argument type '[(Int, (any Command)?)]'}}
+    // expected-note@-2 {{arguments to generic parameter 'Element' ('(String, Copy)' and '(Int, (any Command)?)') are expected to be equal}}
+    // expected-error@-3 {{cannot convert value of type 'Undo' to expected element type 'Copy'}}
+    // expected-error@-4 {{cannot convert value of type 'Cut' to expected element type 'Copy'}}
+    // expected-error@-5 {{cannot convert value of type 'Paste' to expected element type 'Copy'}}
 
   let _: [Int: any Command.Type] = Dictionary(
     uniqueKeysWithValues: [Undo.self, Cut.self, Copy.self, Paste.self].map { ($0.id, $0) })

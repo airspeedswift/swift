@@ -1084,9 +1084,9 @@ let explicitUnboundResult2: (Array<Bool>) -> Array<Int> = {
 }
 // FIXME: Should we prioritize the contextual result type and infer Array<Int>
 // rather than using a type variable in these cases?
-// expected-error@+1 {{unable to infer closure type without a type annotation}}
 let explicitUnboundResult3: (Array<Bool>) -> Array<Int> = {
   (arr: Array) -> Array in [true]
+  // expected-error@-1 {{declared closure result 'Array<Bool>' is incompatible with contextual type 'Array<Int>'}}
 }
 
 // rdar://problem/71525503 - Assertion failed: (!shouldHaveDirectCalleeOverload(call) && "Should we have resolved a callee for this?")

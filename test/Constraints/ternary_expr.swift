@@ -108,3 +108,23 @@ do {
     _ = Data(value: n) // Ok
   }
 }
+
+// Mismatched-generic ternary branches passed to a generic function used to
+// produce `failed to produce diagnostic for expression; please submit a bug
+// report` because each ambiguous solution carried a loud fix at a different
+// (kind, locator) pair, so the per-callee aggregator couldn't combine them.
+// The fallback now diagnoses the first solution's fixes individually.
+do {
+  struct G<E> {
+    // expected-note@-1 {{arguments to generic parameter 'E' ('String' and 'Int') are expected to be equal}}
+    static var a: G<Int> { fatalError() }
+    static var b: G<String> { fatalError() }
+  }
+
+  func f<E>(_: G<E>) {}
+
+  func test(c: Bool) {
+    f(c ? .a : .b)
+    // expected-error@-1 {{member chain produces result of type 'G<String>' but contextual base was inferred as 'G<Int>'}}
+  }
+}

@@ -2101,6 +2101,50 @@ SolutionResult ConstraintSystem::salvage() {
       return SolutionResult::forSolved(std::move(viable[0]));
     }
 
+    // No best solution; the per-callee/per-kind aggregator in
+    // `diagnoseAmbiguityWithFixes` couldn't combine fixes either. As a
+    // last resort, diagnose one solution's fixes individually — picking
+    // some solution is preferable to emitting `failed_to_produce_diagnostic`
+    // and pointing the user at a bug report URL. This commonly arises with
+    // mismatched-generic ternary branches (e.g. `f(c ? .a : .b)` where
+    // `.a` and `.b` have different generic args), where each solution
+    // carries a loud fix at a different (kind, locator) pair.
+    //
+    // Solver enumeration order can be nondeterministic (e.g. C++ interop
+    // imports overloads via DenseMap-keyed lookups in Clang), so we sort
+    // solutions by a stable string rendering before picking, and try
+    // each in turn until one of its fixes produces a diagnostic.
+    if (!shouldSuppressDiagnostics() &&
+        llvm::any_of(viable, [](const Solution &sol) {
+          return !sol.Fixes.empty();
+        })) {
+      SmallVector<std::pair<std::string, const Solution *>, 4> sortedSolutions;
+      for (auto &solution : viable) {
+        if (solution.Fixes.empty())
+          continue;
+        std::string buf;
+        llvm::raw_string_ostream os(buf);
+        solution.dump(os, /*indent=*/0);
+        sortedSolutions.emplace_back(std::move(buf), &solution);
+      }
+      llvm::stable_sort(sortedSolutions,
+                        [](const auto &lhs, const auto &rhs) {
+                          return lhs.first < rhs.first;
+                        });
+
+      bool diagnosed = false;
+      for (const auto &entry : sortedSolutions) {
+        const auto *solution = entry.second;
+        for (auto *fix : solution->Fixes) {
+          diagnosed |= fix->diagnose(*solution, /*asNote=*/false);
+        }
+        if (diagnosed)
+          break;
+      }
+      if (diagnosed)
+        return SolutionResult::forAmbiguous(viable);
+    }
+
     if (shouldSuppressDiagnostics())
       return viable.empty() ? SolutionResult::forUndiagnosedError()
                             : SolutionResult::forAmbiguous(viable);
