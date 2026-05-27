@@ -6221,6 +6221,10 @@ ERROR(concurrent_value_inherit,none,
       "'Sendable' class %1 cannot inherit from another class"
       "%select{| other than 'NSObject'}0",
       (bool, DeclName))
+ERROR(global_actor_isolated_class_nonsendable_superclass,none,
+      "global-actor-isolated class %0 cannot conform to 'Sendable' because "
+      "its superclass %1 is not 'Sendable'",
+      (DeclName, DeclName))
 ERROR(non_sendable_type,none,
       "type %0 does not conform to the 'Sendable' protocol", (Type))
 GROUPED_ERROR(non_sendable_metatype_type,SendableMetatypes,none,

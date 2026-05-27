@@ -7583,6 +7583,26 @@ bool swift::checkSendableConformance(
     llvm_unreachable("type cannot have erased isolation");
 
   case ActorIsolation::GlobalActor:
+    // SE-0434: A global-actor-isolated subclass of a non-isolated,
+    // non-Sendable superclass cannot itself be Sendable, because it inherits
+    // the superclass's unprotected mutable state. The implicit conformance is
+    // suppressed in deriveImplicitSendableConformance; here we diagnose an
+    // explicit (or implied) conformance.
+    if (classDecl) {
+      if (auto *superclassDecl = classDecl->getSuperclassDecl()) {
+        if (!superclassDecl->isNSObject()) {
+          Type superclassType =
+              classDecl->mapTypeIntoEnvironment(classDecl->getSuperclass());
+          if (!checkConformance(superclassType, conformance->getProtocol(),
+                                /*allowMissing=*/false)) {
+            classDecl->diagnose(
+                diag::global_actor_isolated_class_nonsendable_superclass,
+                classDecl->getName(), superclassDecl->getName());
+            return true;
+          }
+        }
+      }
+    }
     return false;
   }
 
