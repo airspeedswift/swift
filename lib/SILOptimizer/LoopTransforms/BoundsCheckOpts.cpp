@@ -605,14 +605,19 @@ struct InductionInfo {
   SILValue End;
   BuiltinValueKind Cmp;
   bool IsOverflowCheckInserted;
+  // The constant step of the induction variable. 1 for a canonical induction
+  // variable; > 1 for a strided one (recognized only for the ICMP_SLT
+  // top-tested form, where Start is required to be 0).
+  unsigned Stride;
 
   InductionInfo()
-      : Cmp(BuiltinValueKind::None), IsOverflowCheckInserted(false) {}
+      : Cmp(BuiltinValueKind::None), IsOverflowCheckInserted(false), Stride(1) {}
 
   InductionInfo(SILArgument *HV, BuiltinInst *I, SILValue S, SILValue E,
-                BuiltinValueKind C, bool IsOverflowChecked = false)
+                BuiltinValueKind C, bool IsOverflowChecked = false,
+                unsigned Stride = 1)
       : HeaderVal(HV), Inc(I), Start(S), End(E), Cmp(C),
-        IsOverflowCheckInserted(IsOverflowChecked) {}
+        IsOverflowCheckInserted(IsOverflowChecked), Stride(Stride) {}
 
   bool isValid() { return Start && End; }
   operator bool() { return isValid(); }
@@ -710,9 +715,6 @@ private:
   /// Analyze one potential induction variable starting at Arg.
   InductionInfo *analyzeIndVar(SILArgument *HeaderVal, BuiltinInst *Inc,
                                IntegerLiteralInst *IncVal) {
-    if (IncVal->getValue() != 1)
-      return nullptr;
-
     // Find the start value.
     auto *PreheaderTerm = dyn_cast<BranchInst>(Preheader->getTerminator());
     if (!PreheaderTerm)
@@ -724,44 +726,87 @@ private:
     if (!CondBr)
       return nullptr;
 
-    if (ExitBlk == CondBr->getFalseBB())
-      return nullptr;
-    assert(ExitBlk == CondBr->getTrueBB() &&
-           "The loop's exiting blocks terminator must exit");
+    // Canonical unit-stride induction with an equality exit, e.g. a
+    // bottom-tested loop that exits when `i + 1 == End`.
+    if (IncVal->getValue() == 1 && ExitBlk == CondBr->getTrueBB()) {
+      auto Cond = CondBr->getCondition();
+      SILValue End;
 
-    auto Cond = CondBr->getCondition();
-    SILValue End;
-
-    // Look for a compare of induction variable + 1.
-    // TODO: obviously we need to handle many more patterns.
-    if (!match(Cond, m_ApplyInst(BuiltinValueKind::ICMP_EQ,
-                                 m_TupleExtractOperation(m_Specific(Inc), 0),
-                                 m_SILValue(End))) &&
-        !match(Cond,
-               m_ApplyInst(BuiltinValueKind::ICMP_EQ, m_SILValue(End),
-                           m_TupleExtractOperation(m_Specific(Inc), 0)))) {
-      LLVM_DEBUG(llvm::dbgs() << " found no exit condition\n");
-      return nullptr;
-    }
-
-    // Make sure our end value is loop invariant.
-    if (!dominates(DT, End, Preheader))
-      return nullptr;
-
-    LLVM_DEBUG(llvm::dbgs()
-               << " found an induction variable (ICMP_EQ): " << *HeaderVal
-               << "  start: " << *Start << "  end: " << *End);
-
-    // Check whether the addition is overflow checked by a cond_fail or whether
-    // code in the preheader's predecessor ensures that we won't overflow.
-    bool IsRangeChecked = false;
-    if (!isOverflowChecked(Inc)) {
-      IsRangeChecked = isRangeChecked(Start, End, Preheader, DT);
-      if (!IsRangeChecked)
+      // Look for a compare of induction variable + 1.
+      // TODO: obviously we need to handle many more patterns.
+      if (!match(Cond, m_ApplyInst(BuiltinValueKind::ICMP_EQ,
+                                   m_TupleExtractOperation(m_Specific(Inc), 0),
+                                   m_SILValue(End))) &&
+          !match(Cond,
+                 m_ApplyInst(BuiltinValueKind::ICMP_EQ, m_SILValue(End),
+                             m_TupleExtractOperation(m_Specific(Inc), 0)))) {
+        LLVM_DEBUG(llvm::dbgs() << " found no exit condition\n");
         return nullptr;
+      }
+
+      // Make sure our end value is loop invariant.
+      if (!dominates(DT, End, Preheader))
+        return nullptr;
+
+      LLVM_DEBUG(llvm::dbgs()
+                 << " found an induction variable (ICMP_EQ): " << *HeaderVal
+                 << "  start: " << *Start << "  end: " << *End);
+
+      // Check whether the addition is overflow checked by a cond_fail or
+      // whether code in the preheader's predecessor ensures that we won't
+      // overflow.
+      bool IsRangeChecked = false;
+      if (!isOverflowChecked(Inc)) {
+        IsRangeChecked = isRangeChecked(Start, End, Preheader, DT);
+        if (!IsRangeChecked)
+          return nullptr;
+      }
+      return new (Allocator.Allocate()) InductionInfo(
+          HeaderVal, Inc, Start, End, BuiltinValueKind::ICMP_EQ, IsRangeChecked);
     }
-    return new (Allocator.Allocate()) InductionInfo(
-        HeaderVal, Inc, Start, End, BuiltinValueKind::ICMP_EQ, IsRangeChecked);
+
+    // Strided, less-than-tested form: `i = 0; while i < End { ...; i += Stride }`.
+    // After loop rotation the exit test compares either the header value
+    // (`i < End`) or the incremented value (`i + Stride < End`); in both cases
+    // every value the body sees lies in `[0, End)`. Recognized only to let the
+    // 0-to-count redundant-check removal fire (it is not hoisted, so no
+    // loop-runs-at-least-once / exact-last-value reasoning is required).
+    if (ExitBlk == CondBr->getFalseBB() &&
+        IncVal->getValue().isStrictlyPositive()) {
+      auto *startLit = dyn_cast<IntegerLiteralInst>(Start);
+      if (!startLit || startLit->getValue() != 0)
+        return nullptr;
+
+      SILValue End;
+      if (!match(CondBr->getCondition(),
+                 m_ApplyInst(BuiltinValueKind::ICMP_SLT, m_Specific(HeaderVal),
+                             m_SILValue(End))) &&
+          !match(CondBr->getCondition(),
+                 m_ApplyInst(BuiltinValueKind::ICMP_SLT,
+                             m_TupleExtractOperation(m_Specific(Inc), 0),
+                             m_SILValue(End))))
+        return nullptr;
+
+      if (!dominates(DT, End, Preheader))
+        return nullptr;
+
+      // Soundness: the body's first iteration runs with `i == 0`, so removing
+      // its check is only valid if entering the loop establishes `0 < End`
+      // (otherwise an empty container would skip a genuine trap). Loop rotation
+      // emits exactly this guard.
+      if (!isRangeChecked(Start, End, Preheader, DT))
+        return nullptr;
+
+      uint64_t stride = IncVal->getValue().getZExtValue();
+      LLVM_DEBUG(llvm::dbgs()
+                 << " found a strided induction variable (ICMP_SLT, stride "
+                 << stride << "): " << *HeaderVal << "  end: " << *End);
+      return new (Allocator.Allocate())
+          InductionInfo(HeaderVal, Inc, Start, End, BuiltinValueKind::ICMP_SLT,
+                        /*IsOverflowChecked=*/false, stride);
+    }
+
+    return nullptr;
   }
 };
 
@@ -805,14 +850,45 @@ public:
     bool preIncrement = false;
 
     auto ArrayIndexStruct = dyn_cast<StructInst>(Idx);
-    if (!ArrayIndexStruct)
+    if (!ArrayIndexStruct) {
+      // The index may be a loop-carried phi that is a boxed mirror of the
+      // induction variable: a `struct Int(i)` phi carried in parallel with the
+      // raw counter `i`. Recognize it when, on every incoming edge, the index
+      // phi is exactly `struct Int(x)` and `x` is the corresponding incoming
+      // value of a recognized induction-variable phi in the same block. The
+      // access is then the identity on that induction variable.
+      auto *idxPhi = dyn_cast<SILPhiArgument>(Idx);
+      if (!idxPhi || !idxPhi->isPhi())
+        return nullptr;
+      auto *bb = idxPhi->getParent();
+      for (auto *cand : bb->getArguments()) {
+        auto *candArg = dyn_cast<SILPhiArgument>(cand);
+        if (!candArg || !candArg->isPhi())
+          continue;
+        InductionInfo *Ind = IndVars[candArg];
+        if (!Ind)
+          continue;
+        bool mirror = true;
+        for (auto *pred : bb->getPredecessorBlocks()) {
+          auto *s = dyn_cast<StructInst>(idxPhi->getIncomingPhiValue(pred));
+          if (!s || s->getElements().size() != 1 ||
+              s->getElements()[0] != candArg->getIncomingPhiValue(pred)) {
+            mirror = false;
+            break;
+          }
+        }
+        if (mirror)
+          return AccessFunction(Ind);
+      }
       return nullptr;
+    }
 
-    auto AsArg = dyn_cast<SILArgument>(ArrayIndexStruct->getElements()[0]);
+    SILValue element = ArrayIndexStruct->getElements()[0];
+
+    auto AsArg = dyn_cast<SILArgument>(element);
 
     if (!AsArg) {
-      auto *TupleExtract =
-          dyn_cast<TupleExtractInst>(ArrayIndexStruct->getElements()[0]);
+      auto *TupleExtract = dyn_cast<TupleExtractInst>(element);
 
       if (!TupleExtract) {
         return nullptr;
@@ -845,6 +921,12 @@ public:
   bool isZeroToCount(SILValue selfValue) {
     return getZeroToCountOfSelf(Ind->Start, Ind->End) == selfValue;
   }
+
+  /// True for the top-tested `while i < End` induction form. These are only
+  /// supported via the 0-to-count redundant-check removal, never hoisting: the
+  /// loop may run zero times, so cloning first/last checks into the preheader
+  /// (which the hoist does) could trap on values the loop never accesses.
+  bool isRemovalOnly() const { return Ind->Cmp == BuiltinValueKind::ICMP_SLT; }
 
   SILValue getFirstValue(SILInstruction *insertPt) {
     SILBuilderWithScope builder(insertPt);
@@ -1670,6 +1752,11 @@ bool BoundsCheckOpts::hoistArrayBoundsChecksInLoop(
       continue;
     }
 
+    // A strided induction variable is only handled by the removal above; its
+    // check is not hoisted (the hoist would use the wrong last value).
+    if (F.isRemovalOnly())
+      continue;
+
     // For hoisting bounds checks the block must dominate the exit block.
     if (!blockAlwaysExecutes)
       continue;
@@ -1755,6 +1842,13 @@ bool BoundsCheckOpts::hoistFixedStorageBoundsChecksInLoop(
                  << "  Redundant Span/InlineArray bounds check removed\n");
       changed = true;
       fixedStorageSemantics->eraseFromParent();
+      continue;
+    }
+
+    // A strided induction variable is only handled by the removal above; we
+    // do not hoist its check (that would need the exact last accessed value
+    // and a guarantee the loop runs at least once).
+    if (accessFunction.isRemovalOnly()) {
       continue;
     }
 

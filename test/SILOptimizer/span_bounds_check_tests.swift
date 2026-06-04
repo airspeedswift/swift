@@ -376,3 +376,38 @@ public func span_different_self_sum(p: borrowing Span<Int>, q: borrowing Span<In
     return a &+ b
 }
 
+// A `while i < count` counted loop (not the `for i in 0..<count` form) should
+// also have its bounds check eliminated.
+
+// CHECK-SIL-LABEL: sil @$s23span_bounds_check_tests0A19_while_sum_to_countySis4SpanVySiGF :
+// CHECK-SIL-NOT: cond_fail {{.*}}, "Index out of bounds"
+// CHECK-SIL-LABEL: } // end sil function '$s23span_bounds_check_tests0A19_while_sum_to_countySis4SpanVySiGF'
+
+// CHECK-IR: define {{.*}} @"$s23span_bounds_check_tests0A19_while_sum_to_countySis4SpanVySiGF"
+// CHECK-IR: @llvm.vector.reduce.add
+public func span_while_sum_to_count(_ v: Span<Int>) -> Int {
+  var sum = 0
+  var i = 0
+  while i < v.count {
+    sum &+= v[i]
+    i &+= 1
+  }
+  return sum
+}
+
+// A strided `while i < count` counted loop should also have its bounds check
+// eliminated (every accessed index lies in 0..<count).
+
+// CHECK-SIL-LABEL: sil @$s23span_bounds_check_tests0A21_strided_sum_to_countySis4SpanVySiGF :
+// CHECK-SIL-NOT: cond_fail {{.*}}, "Index out of bounds"
+// CHECK-SIL-LABEL: } // end sil function '$s23span_bounds_check_tests0A21_strided_sum_to_countySis4SpanVySiGF'
+public func span_strided_sum_to_count(_ v: Span<Int>) -> Int {
+  var sum = 0
+  var i = 0
+  while i < v.count {
+    sum &+= v[i]
+    i &+= 2
+  }
+  return sum
+}
+
