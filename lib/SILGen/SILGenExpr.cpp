@@ -6663,6 +6663,9 @@ void SILGenFunction::emitOpenExistentialExprImpl(
   ASSERT(isInFormalEvaluationScope());
 
   // Emit the existential value.
+  //
+  // If the value is an lvalue, defer its emission so that the existential
+  // storage is opened in place when the opaque value is referenced.
   if (E->getExistentialValue()->getType()->is<LValueType>()) {
     bool inserted = OpaqueValueExprs.insert({E->getOpaqueValue(), E}).second;
     (void)inserted;
@@ -6672,9 +6675,29 @@ void SILGenFunction::emitOpenExistentialExprImpl(
     return;
   }
 
-  auto existentialValue = emitRValueAsSingleValue(
-      E->getExistentialValue(),
-      SGFContext::AllowGuaranteedPlusZero);
+  ManagedValue existentialValue;
+
+  // A noncopyable existential value that is the load of an lvalue (e.g. a
+  // consuming parameter consumed by a consuming member) is opened in place by
+  // borrowing the underlying storage rather than loading it into a temporary
+  // existential. The move-only checker can then consume the opened payload
+  // directly; copying it out of a temporary would be an illegal copy of a
+  // noncopyable value.
+  auto *existentialExpr = E->getExistentialValue();
+  if (existentialExpr->getType()->isNoncopyable()) {
+    if (auto *load = dyn_cast<LoadExpr>(existentialExpr)) {
+      LValue lv = emitLValue(load->getSubExpr(),
+                             SGFAccessKind::BorrowedAddressRead);
+      existentialValue =
+          emitAddressOfLValue(load->getSubExpr(), std::move(lv));
+    }
+  }
+
+  if (!existentialValue) {
+    existentialValue = emitRValueAsSingleValue(
+        E->getExistentialValue(),
+        SGFContext::AllowGuaranteedPlusZero);
+  }
 
   Type opaqueValueType = E->getOpaqueValue()->getType()->getRValueType();
   auto payload = emitOpenExistential(
