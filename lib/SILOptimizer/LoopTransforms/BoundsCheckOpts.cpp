@@ -471,25 +471,18 @@ static BuiltinValueKind invertCmpID(BuiltinValueKind ID) {
   }
 }
 
-/// Checks if Start to End is the range of 0 to the count of an array or a fixed
-/// storage type. Returns the self value if this is the case.
-static SILValue getZeroToCountOfSelf(SILValue start, SILValue end) {
-  auto *intLiteral = dyn_cast<IntegerLiteralInst>(start);
-  if (!intLiteral || intLiteral->getValue() != 0) {
+/// If \p v is `structextract(get_count(self))` (an array/fixed-storage count),
+/// return that `self`; otherwise a null value.
+static SILValue getCountSelf(SILValue v) {
+  auto *sei = dyn_cast<StructExtractInst>(v);
+  if (!sei)
     return SILValue();
-  }
-  auto *sei = dyn_cast<StructExtractInst>(end);
-  if (!sei) {
-    return SILValue();
-  }
   auto *applyInst = dyn_cast<ApplyInst>(sei->getOperand());
-  if (!applyInst) {
+  if (!applyInst)
     return SILValue();
-  }
   auto *callee = applyInst->getReferencedFunctionOrNull();
-  if (!callee) {
+  if (!callee)
     return SILValue();
-  }
   for (auto attr : callee->getSemanticsAttrs()) {
     if (attr == "array.get_count" || attr == "fixed_storage.get_count") {
       return applyInst->hasSelfArgument() ? applyInst->getSelfArgument()
@@ -497,6 +490,16 @@ static SILValue getZeroToCountOfSelf(SILValue start, SILValue end) {
     }
   }
   return SILValue();
+}
+
+/// Checks if Start to End is the range of 0 to the count of an array or a fixed
+/// storage type. Returns the self value if this is the case.
+static SILValue getZeroToCountOfSelf(SILValue start, SILValue end) {
+  auto *intLiteral = dyn_cast<IntegerLiteralInst>(start);
+  if (!intLiteral || intLiteral->getValue() != 0) {
+    return SILValue();
+  }
+  return getCountSelf(end);
 }
 
 /// Checks whether the cond_br in the preheader's predecessor ensures that the
@@ -777,20 +780,155 @@ static bool isGuaranteedToBeExecuted(DominanceInfo *DT, SILBasicBlock *Block,
   return DT->dominates(Block, SingleExitingBlk);
 }
 
+/// Is \p v the integer literal \p val?
+static bool isIntLiteral(SILValue v, int64_t val) {
+  auto *lit = dyn_cast<IntegerLiteralInst>(v);
+  return lit && lit->getValue().getBitWidth() <= 64 &&
+         lit->getValue().getSExtValue() == val;
+}
+
+/// Is \p v the count of \p self, possibly wrapped in an `assumeNonNegative`?
+static bool isCountOfSelf(SILValue v, SILValue self) {
+  if (auto *bi = dyn_cast<BuiltinInst>(v))
+    if (bi->getBuiltinInfo().ID == BuiltinValueKind::AssumeNonNegative)
+      return isCountOfSelf(bi->getOperand(0), self);
+  return getCountSelf(v) == self;
+}
+
+/// If \p v is the sum `offset + end` (in either operand order), return the
+/// `sadd_with_overflow` builtin computing it; else null. The caller must still
+/// check the overflow bit is trapped (isOverflowChecked) before relying on the
+/// sum not wrapping.
+static BuiltinInst *matchOffsetPlusEnd(SILValue v, SILValue offset,
+                                       SILValue end) {
+  auto *tei = dyn_cast<TupleExtractInst>(v);
+  if (!tei || tei->getFieldIndex() != 0)
+    return nullptr;
+  auto *bi = dyn_cast<BuiltinInst>(tei->getOperand());
+  if (!bi || bi->getBuiltinInfo().ID != BuiltinValueKind::SAddOver)
+    return nullptr;
+  auto a = bi->getOperand(0), b = bi->getOperand(1);
+  if ((a == offset && b == end) || (a == end && b == offset))
+    return bi;
+  return nullptr;
+}
+
+/// If reaching \p atBlock is guaranteed to take one edge of \p condBr — that
+/// successor dominates \p atBlock and has the branch as its single predecessor,
+/// so reaching \p atBlock through it implies that edge was taken — and the
+/// condition is a signed integer comparison, bind \p pred / \p lhs / \p rhs to
+/// the comparison as it holds on entry to \p atBlock (its predicate inverted
+/// for the false edge, following isLessThanCheck).
+static bool takenComparison(CondBranchInst *condBr, SILBasicBlock *atBlock,
+                            DominanceInfo *DT, BuiltinValueKind &pred,
+                            SILValue &lhs, SILValue &rhs) {
+  auto *bi = dyn_cast<BuiltinInst>(condBr->getCondition());
+  if (!bi || bi->getNumOperands() != 2)
+    return false;
+  pred = bi->getBuiltinInfo().ID;
+  // Only integer comparisons can be inverted/swapped soundly. Every ICMP kind
+  // inverts to a distinct kind, so a fixed point of invertCmpID is a
+  // non-comparison builtin (and/or/xor) that we must not reason about.
+  if (invertCmpID(pred) == pred)
+    return false;
+  auto *block = condBr->getParent();
+  bool trueEdge;
+  if (condBr->getTrueBB()->getSinglePredecessorBlock() == block &&
+      DT->dominates(condBr->getTrueBB(), atBlock))
+    trueEdge = true;
+  else if (condBr->getFalseBB()->getSinglePredecessorBlock() == block &&
+           DT->dominates(condBr->getFalseBB(), atBlock))
+    trueEdge = false;
+  else
+    return false;
+  lhs = bi->getOperand(0);
+  rhs = bi->getOperand(1);
+  if (!trueEdge)
+    pred = invertCmpID(pred);
+  return true;
+}
+
+/// Walk the dominator tree upward from \p atBlock and invoke \p check with each
+/// dominating branch comparison known to hold there, in both operand orders (so
+/// callers only match one canonical form). Stops when \p check returns true.
+static bool forEachDominatingComparison(
+    SILBasicBlock *atBlock, DominanceInfo *DT,
+    llvm::function_ref<bool(BuiltinValueKind, SILValue, SILValue)> check) {
+  auto *node = DT->getNode(atBlock);
+  if (!node)
+    return false;
+  for (node = node->getIDom(); node; node = node->getIDom()) {
+    auto *condBr = dyn_cast<CondBranchInst>(node->getBlock()->getTerminator());
+    if (!condBr)
+      continue;
+    BuiltinValueKind pred;
+    SILValue lhs, rhs;
+    if (!takenComparison(condBr, atBlock, DT, pred, lhs, rhs))
+      continue;
+    if (check(pred, lhs, rhs) || check(swapCmpID(pred), rhs, lhs))
+      return true;
+  }
+  return false;
+}
+
+/// Is `offset >= 0` guaranteed by a branch dominating \p atBlock?
+static bool guardProvesNonNegative(SILValue offset, SILBasicBlock *atBlock,
+                                   DominanceInfo *DT) {
+  return forEachDominatingComparison(
+      atBlock, DT, [&](BuiltinValueKind pred, SILValue lhs, SILValue rhs) {
+        if (pred == BuiltinValueKind::ICMP_SGE && lhs == offset &&
+            isIntLiteral(rhs, 0))
+          return true;
+        if (pred == BuiltinValueKind::ICMP_SGT && lhs == offset &&
+            isIntLiteral(rhs, -1))
+          return true;
+        return false;
+      });
+}
+
+/// Is `offset + end <= count(self)` guaranteed by a branch dominating
+/// \p checkInst, with `offset + end` computed by an overflow-checked add whose
+/// trap properly dominates \p checkInst (so reaching the check implies the sum
+/// did not wrap, and the `<= count` fact is about the true sum)?
+static bool guardProvesSumLECount(SILValue offset, SILValue end, SILValue self,
+                                  SILInstruction *checkInst, DominanceInfo *DT) {
+  return forEachDominatingComparison(
+      checkInst->getParent(), DT,
+      [&](BuiltinValueKind pred, SILValue lhs, SILValue rhs) {
+        if (pred != BuiltinValueKind::ICMP_SLE &&
+            pred != BuiltinValueKind::ICMP_SLT)
+          return false;
+        auto *sum = matchOffsetPlusEnd(lhs, offset, end);
+        if (!sum || !isCountOfSelf(rhs, self))
+          return false;
+        // The trap must have executed before the check, not merely be in a
+        // block that dominates it (a block dominates itself); use
+        // instruction-level domination.
+        auto *overflowTrap = isOverflowChecked(sum);
+        return overflowTrap && DT->properlyDominates(overflowTrap, checkInst);
+      });
+}
+
 /// Describes the access function "a[f(i)]" that is based on a canonical
 /// induction variable.
 class AccessFunction {
   InductionInfo *Ind;
   bool preIncrement;
+  /// A loop-invariant offset added to the induction variable, i.e. the "base"
+  /// in an affine access "a[base + i]". Null for the plain "a[i]" case.
+  SILValue Offset;
 
-  AccessFunction(InductionInfo *I, bool isPreIncrement = false)
-      : Ind(I), preIncrement(isPreIncrement) {}
+  AccessFunction(InductionInfo *I, bool isPreIncrement = false,
+                 SILValue Offset = SILValue())
+      : Ind(I), preIncrement(isPreIncrement), Offset(Offset) {}
 
 public:
   operator bool() { return Ind != nullptr; }
 
   static AccessFunction getLinearFunction(SILValue Idx,
-                                          InductionAnalysis &IndVars) {
+                                          InductionAnalysis &IndVars,
+                                          DominanceInfo *DT = nullptr,
+                                          SILBasicBlock *Preheader = nullptr) {
     // Match the actual induction variable buried in the integer struct.
     // bb(%ivar)
     // %2 = struct $Int(%ivar : $Builtin.Word)
@@ -823,16 +961,42 @@ public:
         return nullptr;
       }
 
-      AsArg = dyn_cast<SILArgument>(Builtin->getArguments()[0]);
-      if (!AsArg) {
-        return nullptr;
+      auto lhs = Builtin->getArguments()[0];
+      auto rhs = Builtin->getArguments()[1];
+
+      // Pre-increment access "a[i + 1]".
+      if (auto *arg = dyn_cast<SILArgument>(lhs)) {
+        auto *incrVal = dyn_cast<IntegerLiteralInst>(rhs);
+        if (incrVal && incrVal->getValue() == 1) {
+          if (auto *Ind = IndVars[arg])
+            return AccessFunction(Ind, /*preIncrement*/ true);
+          return nullptr;
+        }
       }
 
-      auto *incrVal = dyn_cast<IntegerLiteralInst>(Builtin->getArguments()[1]);
-      if (!incrVal || incrVal->getValue() != 1)
-        return nullptr;
-
-      preIncrement = true;
+      // Affine access "a[base + i]": one operand of the add is the induction
+      // variable, the other a loop-invariant offset (dominating the preheader).
+      // The boundary checks can then be hoisted to the preheader. This is sound
+      // only if "base + i" does not integer-wrap across the loop (otherwise it
+      // would not be monotonic and the two endpoints would not bound the range):
+      // require the add to be overflow-checked, which traps in the loop before
+      // any wrapped index would be used.
+      if (DT && Preheader && isOverflowChecked(Builtin)) {
+        SILArgument *indArg = nullptr;
+        SILValue offset;
+        if (auto *a = dyn_cast<SILArgument>(lhs); a && IndVars[a]) {
+          indArg = a;
+          offset = rhs;
+        } else if (auto *a = dyn_cast<SILArgument>(rhs); a && IndVars[a]) {
+          indArg = a;
+          offset = lhs;
+        }
+        if (indArg && dominates(DT, offset, Preheader)) {
+          if (auto *Ind = IndVars[indArg])
+            return AccessFunction(Ind, /*preIncrement*/ false, offset);
+        }
+      }
+      return nullptr;
     }
 
     if (auto *Ind = IndVars[AsArg])
@@ -843,13 +1007,57 @@ public:
 
   /// Returns true if the loop iterates from 0 until count of \p selfValue.
   bool isZeroToCount(SILValue selfValue) {
+    if (Offset)
+      return false;
     return getZeroToCountOfSelf(Ind->Start, Ind->End) == selfValue;
+  }
+
+  /// For an affine access `self[base + i]` with `i` in `[Start, End)`, returns
+  /// true if a guard dominating \p checkInst proves every accessed index is in
+  /// bounds, so the check can be eliminated outright (not just hoisted).
+  ///
+  /// The obligations, given `i` in `[Start, End)`:
+  ///  - `base + i >= 0`: from `base >= 0` (dominating guard) and `Start >= 0`.
+  ///  - `base + i < count`: `base + i <= base + (End - 1) < base + End`, and
+  ///    `base + End <= count` (dominating guard). `base + End` is
+  ///    overflow-checked by a trap properly dominating the check, so it does
+  ///    not wrap.
+  /// Restricted to object (non-address) self so `count` cannot change between
+  /// the guard and the loop.
+  bool isProvablyInBoundsViaGuard(SILValue self, SILInstruction *checkInst,
+                                  DominanceInfo *DT) {
+    if (!Offset || self->getType().isAddress())
+      return false;
+    auto *startLit = dyn_cast<IntegerLiteralInst>(Ind->Start);
+    if (!startLit || startLit->getValue().isNegative())
+      return false;
+    return guardProvesNonNegative(Offset, checkInst->getParent(), DT) &&
+           guardProvesSumLECount(Offset, Ind->End, self, checkInst, DT);
+  }
+
+  /// Add the loop-invariant offset (if any) to a boundary induction value,
+  /// trapping on overflow. The hoisted boundary check must see the true
+  /// `base + x`; the trap matches the overflow-checked `base + i` in the loop
+  /// body, so a boundary that would overflow traps here in the preheader just
+  /// as the loop would have on that iteration.
+  SILValue addOffset(SILValue value, SILLocation loc, SILBuilder &builder) {
+    if (!Offset)
+      return value;
+    auto int1 = SILType::getBuiltinIntegerType(1, builder.getASTContext());
+    SILValue args[] = {Offset, value,
+                       builder.createIntegerLiteral(loc, int1, 1)};
+    auto *add = builder.createBuiltinBinaryFunctionWithOverflow(
+        loc, "sadd_with_overflow", args);
+    builder.createCondFail(loc, builder.createTupleExtract(loc, add, 1),
+                           "arithmetic overflow");
+    return builder.createTupleExtract(loc, add, 0);
   }
 
   SILValue getFirstValue(SILInstruction *insertPt) {
     SILBuilderWithScope builder(insertPt);
-    auto firstValue =
+    SILValue firstValue =
         Ind->getFirstValue(insertPt->getLoc(), builder, preIncrement ? 1 : 0);
+    firstValue = addOffset(firstValue, insertPt->getLoc(), builder);
     auto intType = SILType::getPrimitiveObjectType(
         builder.getASTContext().getIntType()->getCanonicalType());
     return builder.createStruct(insertPt->getLoc(), intType, {firstValue});
@@ -857,8 +1065,9 @@ public:
 
   SILValue getLastValue(SILInstruction *insertPt) {
     SILBuilderWithScope builder(insertPt);
-    auto lastValue =
+    SILValue lastValue =
         Ind->getLastValue(insertPt->getLoc(), builder, preIncrement ? 0 : 1);
+    lastValue = addOffset(lastValue, insertPt->getLoc(), builder);
     auto intType = SILType::getPrimitiveObjectType(
         builder.getASTContext().getIntType()->getCanonicalType());
     return builder.createStruct(insertPt->getLoc(), intType, {lastValue});
@@ -1732,7 +1941,7 @@ bool BoundsCheckOpts::hoistFixedStorageBoundsChecksInLoop(
     }
 
     auto accessFunction =
-        AccessFunction::getLinearFunction(indexValue, indVars);
+        AccessFunction::getLinearFunction(indexValue, indVars, DT, preheader);
     if (!accessFunction) {
       LLVM_DEBUG(llvm::dbgs() << " not a linear function " << *inst);
       continue;
@@ -1742,6 +1951,18 @@ bool BoundsCheckOpts::hoistFixedStorageBoundsChecksInLoop(
     if (accessFunction.isZeroToCount(selfValue)) {
       LLVM_DEBUG(llvm::dbgs()
                  << "  Redundant Span/InlineArray bounds check removed\n");
+      changed = true;
+      fixedStorageSemantics->eraseFromParent();
+      continue;
+    }
+
+    // If a dominating guard proves the affine index `base + i` is always in
+    // bounds, eliminate the check entirely (rather than hoisting it), so it
+    // costs no code or run time.
+    if (accessFunction.isProvablyInBoundsViaGuard(selfValue, inst, DT)) {
+      LLVM_DEBUG(
+          llvm::dbgs()
+          << "  Span/InlineArray bounds check eliminated by dominating guard\n");
       changed = true;
       fixedStorageSemantics->eraseFromParent();
       continue;

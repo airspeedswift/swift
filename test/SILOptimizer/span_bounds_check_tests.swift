@@ -378,3 +378,18 @@ public func span_different_self_sum(p: borrowing Span<Int>, q: borrowing Span<In
     return a &+ b
 }
 
+
+// Affine access span[base + i], with a guard proving base >= 0, n >= 0 and
+// base + n <= v.count. Every access is provably in bounds, so the bounds check
+// is eliminated in SIL (this is the WasmKit value-stack pattern).
+// CHECK-SIL-LABEL: sil @$s23span_bounds_check_tests0A11_sum_affineySis4SpanVySiG_S2itF :
+// CHECK-SIL-NOT: cond_fail {{.*}}, "Index out of bounds"
+// CHECK-SIL-LABEL: } // end sil function '$s23span_bounds_check_tests0A11_sum_affineySis4SpanVySiG_S2itF'
+public func span_sum_affine(_ v: borrowing Span<Int>, _ base: Int, _ n: Int) -> Int {
+  var sum = 0
+  guard base >= 0, n >= 0, base + n <= v.count else { return 0 }
+  for i in 0..<n {
+    sum &+= v[base + i]
+  }
+  return sum &+ 1 // adding 1 to avoid LLVM function merging
+}

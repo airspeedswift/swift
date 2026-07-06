@@ -341,3 +341,371 @@ bb3:
   %t = tuple ()
   return %t : $()
 }
+
+// An affine access "span[base + i]" with a loop-invariant base: the
+// per-iteration bounds check is hoisted to the preheader as two boundary
+// checks, for "base + 0" and "base + (n - 1)".
+// CHECK-LABEL: sil @test_affine_bounds_check_hoist :
+// CHECK: bb1:
+// CHECK:   builtin "sadd_with_overflow_Int64"
+// CHECK:   [[LOIDX:%[0-9]+]] = struct $Int
+// CHECK:   apply {{%[0-9]+}}([[LOIDX]], %2)
+// CHECK:   builtin "sadd_with_overflow_Int64"
+// CHECK:   [[HIIDX:%[0-9]+]] = struct $Int
+// CHECK:   apply {{%[0-9]+}}([[HIIDX]], %2)
+// CHECK: bb2({{%[0-9]+}} : $Builtin.Int64):
+// CHECK-NOT: apply
+// CHECK-LABEL: } // end sil function 'test_affine_bounds_check_hoist'
+sil @test_affine_bounds_check_hoist : $@convention(thin) (Int, Int, @guaranteed Span<Int>) -> () {
+bb0(%base : $Int, %n : $Int, %span : $Span<Int>):
+  %check_fn = function_ref @checkIndex : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %zero = integer_literal $Builtin.Int64, 0
+  %base_val = struct_extract %base, #Int._value
+  %n_val = struct_extract %n, #Int._value
+  %is_zero = builtin "cmp_eq_Int64"(%zero : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %is_zero, bb3, bb1
+
+bb1:
+  br bb2(%zero : $Builtin.Int64)
+
+bb2(%i : $Builtin.Int64):
+  %trap = integer_literal $Builtin.Int1, -1
+  %addidx = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %i : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %idxval = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 0
+  %idxovf = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %idxovf : $Builtin.Int1, "arithmetic overflow"
+  %idx = struct $Int (%idxval : $Builtin.Int64)
+  %c1 = apply %check_fn(%idx, %span) : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %one = integer_literal $Builtin.Int64, 1
+  %inc = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %one : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %next = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 0
+  %ovf = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %ovf : $Builtin.Int1, "loop induction variable overflowed"
+  %done = builtin "cmp_eq_Int64"(%next : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %done, bb3, bb2(%next : $Builtin.Int64)
+
+bb3:
+  %t = tuple ()
+  return %t : $()
+}
+
+// The same, with the induction variable as the first operand of the add
+// ("span[i + base]"). The offset is still recognized as loop-invariant.
+// CHECK-LABEL: sil @test_affine_bounds_check_hoist_swapped :
+// CHECK: bb1:
+// CHECK:   apply {{%[0-9]+}}({{%[0-9]+}}, %2)
+// CHECK:   apply {{%[0-9]+}}({{%[0-9]+}}, %2)
+// CHECK: bb2({{%[0-9]+}} : $Builtin.Int64):
+// CHECK-NOT: apply
+// CHECK-LABEL: } // end sil function 'test_affine_bounds_check_hoist_swapped'
+sil @test_affine_bounds_check_hoist_swapped : $@convention(thin) (Int, Int, @guaranteed Span<Int>) -> () {
+bb0(%base : $Int, %n : $Int, %span : $Span<Int>):
+  %check_fn = function_ref @checkIndex : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %zero = integer_literal $Builtin.Int64, 0
+  %base_val = struct_extract %base, #Int._value
+  %n_val = struct_extract %n, #Int._value
+  %is_zero = builtin "cmp_eq_Int64"(%zero : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %is_zero, bb3, bb1
+
+bb1:
+  br bb2(%zero : $Builtin.Int64)
+
+bb2(%i : $Builtin.Int64):
+  %trap = integer_literal $Builtin.Int1, -1
+  %addidx = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %base_val : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %idxval = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 0
+  %idxovf = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %idxovf : $Builtin.Int1, "arithmetic overflow"
+  %idx = struct $Int (%idxval : $Builtin.Int64)
+  %c1 = apply %check_fn(%idx, %span) : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %one = integer_literal $Builtin.Int64, 1
+  %inc = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %one : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %next = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 0
+  %ovf = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %ovf : $Builtin.Int1, "loop induction variable overflowed"
+  %done = builtin "cmp_eq_Int64"(%next : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %done, bb3, bb2(%next : $Builtin.Int64)
+
+bb3:
+  %t = tuple ()
+  return %t : $()
+}
+
+sil [_semantics "fixed_storage.get_count"] @getCount : $@convention(method) (@guaranteed Span<Int>) -> Int
+
+// Affine access span[base + i] for i in 0..<n, dominated by a guard proving
+// base >= 0 and base + n <= count. The check is provably always in bounds, so
+// it is eliminated outright (not hoisted): no checkIndex apply remains.
+// CHECK-LABEL: sil @test_affine_eliminate_via_guard :
+// CHECK-NOT: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK-LABEL: } // end sil function 'test_affine_eliminate_via_guard'
+sil @test_affine_eliminate_via_guard : $@convention(thin) (Int, Int, @guaranteed Span<Int>) -> () {
+bb0(%base : $Int, %n : $Int, %span : $Span<Int>):
+  %zero = integer_literal $Builtin.Int64, 0
+  %trap = integer_literal $Builtin.Int1, -1
+  %base_val = struct_extract %base, #Int._value
+  %n_val = struct_extract %n, #Int._value
+  %bge = builtin "cmp_sge_Int64"(%base_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %bge, bb1, bbfail
+
+bb1:
+  %sum = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %n_val : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %sumv = tuple_extract %sum : $(Builtin.Int64, Builtin.Int1), 0
+  %sumo = tuple_extract %sum : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %sumo : $Builtin.Int1, "arithmetic overflow"
+  %gc = function_ref @getCount : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cnt = apply %gc(%span) : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cntv = struct_extract %cnt, #Int._value
+  %le = builtin "cmp_sge_Int64"(%cntv : $Builtin.Int64, %sumv : $Builtin.Int64) : $Builtin.Int1
+  cond_br %le, bb2, bbfail
+
+bb2:
+  %isz = builtin "cmp_eq_Int64"(%n_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %isz, bb5, bb3
+
+bb3:
+  br bb4(%zero : $Builtin.Int64)
+
+bb4(%i : $Builtin.Int64):
+  %addidx = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %i : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %idxv = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 0
+  %idxo = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %idxo : $Builtin.Int1, "arithmetic overflow"
+  %idx = struct $Int (%idxv : $Builtin.Int64)
+  %cf = function_ref @checkIndex : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %c = apply %cf(%idx, %span) : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %one = integer_literal $Builtin.Int64, 1
+  %inc = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %one : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %next = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 0
+  %inco = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %inco : $Builtin.Int1, "loop induction variable overflowed"
+  %done = builtin "cmp_eq_Int64"(%next : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %done, bb5, bb4(%next : $Builtin.Int64)
+
+bbfail:
+  br bb5
+
+bb5:
+  %t = tuple ()
+  return %t : $()
+}
+
+// Same loop but WITHOUT the base+n<=count guard: the check is NOT provably in
+// bounds, so it must not be eliminated. It falls back to hoisting (the boundary
+// checks appear in the preheader).
+// CHECK-LABEL: sil @test_affine_no_guard_no_eliminate :
+// CHECK: bb1:
+// CHECK: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK: bb2({{%[0-9]+}} : $Builtin.Int64):
+// CHECK-NOT: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK-LABEL: } // end sil function 'test_affine_no_guard_no_eliminate'
+sil @test_affine_no_guard_no_eliminate : $@convention(thin) (Int, Int, @guaranteed Span<Int>) -> () {
+bb0(%base : $Int, %n : $Int, %span : $Span<Int>):
+  %cf = function_ref @checkIndex : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %zero = integer_literal $Builtin.Int64, 0
+  %trap = integer_literal $Builtin.Int1, -1
+  %base_val = struct_extract %base, #Int._value
+  %n_val = struct_extract %n, #Int._value
+  %isz = builtin "cmp_eq_Int64"(%n_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %isz, bb3, bb1
+
+bb1:
+  br bb2(%zero : $Builtin.Int64)
+
+bb2(%i : $Builtin.Int64):
+  %addidx = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %i : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %idxv = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 0
+  %idxo = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %idxo : $Builtin.Int1, "arithmetic overflow"
+  %idx = struct $Int (%idxv : $Builtin.Int64)
+  %c = apply %cf(%idx, %span) : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %one = integer_literal $Builtin.Int64, 1
+  %inc = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %one : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %next = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 0
+  %inco = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %inco : $Builtin.Int1, "loop induction variable overflowed"
+  %done = builtin "cmp_eq_Int64"(%next : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %done, bb3, bb2(%next : $Builtin.Int64)
+
+bb3:
+  %t = tuple ()
+  return %t : $()
+}
+
+// Guards spelled on the FALSE edge (negated) and swapped operand order:
+//   base >= 0     as  cond_br cmp_slt(base, 0), fail, loop      (invert SLT->SGE)
+//   base+n<=count as  cond_br cmp_slt(count, base+n), fail, loop (invert + swap)
+// Exercises the invertCmpID/swapCmpID normalization; a true-edge-only matcher
+// would fail to eliminate here.
+// CHECK-LABEL: sil @test_affine_eliminate_via_negated_guard :
+// CHECK-NOT: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK-LABEL: } // end sil function 'test_affine_eliminate_via_negated_guard'
+sil @test_affine_eliminate_via_negated_guard : $@convention(thin) (Int, Int, @guaranteed Span<Int>) -> () {
+bb0(%base : $Int, %n : $Int, %span : $Span<Int>):
+  %zero = integer_literal $Builtin.Int64, 0
+  %trap = integer_literal $Builtin.Int1, -1
+  %base_val = struct_extract %base, #Int._value
+  %n_val = struct_extract %n, #Int._value
+  %blt = builtin "cmp_slt_Int64"(%base_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %blt, bbfail, bb1
+
+bb1:
+  %sum = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %n_val : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %sumv = tuple_extract %sum : $(Builtin.Int64, Builtin.Int1), 0
+  %sumo = tuple_extract %sum : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %sumo : $Builtin.Int1, "arithmetic overflow"
+  %gc = function_ref @getCount : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cnt = apply %gc(%span) : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cntv = struct_extract %cnt, #Int._value
+  %gt = builtin "cmp_slt_Int64"(%cntv : $Builtin.Int64, %sumv : $Builtin.Int64) : $Builtin.Int1
+  cond_br %gt, bbfail, bb2
+
+bb2:
+  %isz = builtin "cmp_eq_Int64"(%n_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %isz, bb5, bb3
+
+bb3:
+  br bb4(%zero : $Builtin.Int64)
+
+bb4(%i : $Builtin.Int64):
+  %addidx = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %i : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %idxv = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 0
+  %idxo = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %idxo : $Builtin.Int1, "arithmetic overflow"
+  %idx = struct $Int (%idxv : $Builtin.Int64)
+  %cf = function_ref @checkIndex : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %c = apply %cf(%idx, %span) : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %one = integer_literal $Builtin.Int64, 1
+  %inc = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %one : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %next = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 0
+  %inco = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %inco : $Builtin.Int1, "loop induction variable overflowed"
+  %done = builtin "cmp_eq_Int64"(%next : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %done, bb5, bb4(%next : $Builtin.Int64)
+
+bbfail:
+  br bb5
+
+bb5:
+  %t = tuple ()
+  return %t : $()
+}
+
+// The `base + n <= count` guard holds, but base+n is computed with its overflow
+// bit DROPPED (no cond_fail), so base+n may wrap and `<= count` would be about
+// the wrapped value. Eliminating would allow an out-of-bounds read, so the
+// check must only be hoisted, never eliminated.
+// CHECK-LABEL: sil @test_affine_dropped_overflow_no_eliminate :
+// CHECK: bb3:
+// CHECK: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK-LABEL: } // end sil function 'test_affine_dropped_overflow_no_eliminate'
+sil @test_affine_dropped_overflow_no_eliminate : $@convention(thin) (Int, Int, @guaranteed Span<Int>) -> () {
+bb0(%base : $Int, %n : $Int, %span : $Span<Int>):
+  %cf = function_ref @checkIndex : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %zero = integer_literal $Builtin.Int64, 0
+  %trap = integer_literal $Builtin.Int1, -1
+  %base_val = struct_extract %base, #Int._value
+  %n_val = struct_extract %n, #Int._value
+  %bge = builtin "cmp_sge_Int64"(%base_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %bge, bb1, bbfail
+
+bb1:
+  %sum = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %n_val : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %sumv = tuple_extract %sum : $(Builtin.Int64, Builtin.Int1), 0
+  %gc = function_ref @getCount : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cnt = apply %gc(%span) : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cntv = struct_extract %cnt, #Int._value
+  %le = builtin "cmp_sge_Int64"(%cntv : $Builtin.Int64, %sumv : $Builtin.Int64) : $Builtin.Int1
+  cond_br %le, bb2, bbfail
+
+bb2:
+  %isz = builtin "cmp_eq_Int64"(%n_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %isz, bb5, bb3
+
+bb3:
+  br bb4(%zero : $Builtin.Int64)
+
+bb4(%i : $Builtin.Int64):
+  %addidx = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %i : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %idxv = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 0
+  %idxo = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %idxo : $Builtin.Int1, "arithmetic overflow"
+  %idx = struct $Int (%idxv : $Builtin.Int64)
+  %c = apply %cf(%idx, %span) : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %one = integer_literal $Builtin.Int64, 1
+  %inc = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %one : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %next = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 0
+  %inco = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %inco : $Builtin.Int1, "loop induction variable overflowed"
+  %done = builtin "cmp_eq_Int64"(%next : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %done, bb5, bb4(%next : $Builtin.Int64)
+
+bbfail:
+  br bb5
+
+bb5:
+  %t = tuple ()
+  return %t : $()
+}
+
+// The `base + n` overflow cond_fail sits in the loop body AFTER the check, so
+// reaching the check does not imply the sum was non-wrapping. Block-level
+// dominance would wrongly accept it (a block dominates itself); the check must
+// only be hoisted, never eliminated.
+// CHECK-LABEL: sil @test_affine_late_overflow_trap_no_eliminate :
+// CHECK: bb3:
+// CHECK: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK: apply {{.*}}(Int, @guaranteed Span<Int>) -> ()
+// CHECK-LABEL: } // end sil function 'test_affine_late_overflow_trap_no_eliminate'
+sil @test_affine_late_overflow_trap_no_eliminate : $@convention(thin) (Int, Int, @guaranteed Span<Int>) -> () {
+bb0(%base : $Int, %n : $Int, %span : $Span<Int>):
+  %cf = function_ref @checkIndex : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %zero = integer_literal $Builtin.Int64, 0
+  %trap = integer_literal $Builtin.Int1, -1
+  %base_val = struct_extract %base, #Int._value
+  %n_val = struct_extract %n, #Int._value
+  %bge = builtin "cmp_sge_Int64"(%base_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %bge, bb1, bbfail
+
+bb1:
+  %sum = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %n_val : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %sumv = tuple_extract %sum : $(Builtin.Int64, Builtin.Int1), 0
+  %gc = function_ref @getCount : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cnt = apply %gc(%span) : $@convention(method) (@guaranteed Span<Int>) -> Int
+  %cntv = struct_extract %cnt, #Int._value
+  %le = builtin "cmp_sge_Int64"(%cntv : $Builtin.Int64, %sumv : $Builtin.Int64) : $Builtin.Int1
+  cond_br %le, bb2, bbfail
+
+bb2:
+  %isz = builtin "cmp_eq_Int64"(%n_val : $Builtin.Int64, %zero : $Builtin.Int64) : $Builtin.Int1
+  cond_br %isz, bb5, bb3
+
+bb3:
+  br bb4(%zero : $Builtin.Int64)
+
+bb4(%i : $Builtin.Int64):
+  %addidx = builtin "sadd_with_overflow_Int64"(%base_val : $Builtin.Int64, %i : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %idxv = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 0
+  %idxo = tuple_extract %addidx : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %idxo : $Builtin.Int1, "arithmetic overflow"
+  %idx = struct $Int (%idxv : $Builtin.Int64)
+  %c = apply %cf(%idx, %span) : $@convention(method) (Int, @guaranteed Span<Int>) -> ()
+  %sumo = tuple_extract %sum : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %sumo : $Builtin.Int1, "arithmetic overflow"
+  %one = integer_literal $Builtin.Int64, 1
+  %inc = builtin "sadd_with_overflow_Int64"(%i : $Builtin.Int64, %one : $Builtin.Int64, %trap : $Builtin.Int1) : $(Builtin.Int64, Builtin.Int1)
+  %next = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 0
+  %inco = tuple_extract %inc : $(Builtin.Int64, Builtin.Int1), 1
+  cond_fail %inco : $Builtin.Int1, "loop induction variable overflowed"
+  %done = builtin "cmp_eq_Int64"(%next : $Builtin.Int64, %n_val : $Builtin.Int64) : $Builtin.Int1
+  cond_br %done, bb5, bb4(%next : $Builtin.Int64)
+
+bbfail:
+  br bb5
+
+bb5:
+  %t = tuple ()
+  return %t : $()
+}
