@@ -8,7 +8,7 @@
 // 'end_access' marker that lowers to nothing, preserving the musttail at IR.)
 struct NC: ~Copyable { var i: Int }
 
-// CHECK-LABEL: sil hidden [ossa] @$s18become_noncopyable6stepNCySiAA0D0Vz_SitF
+// CHECK-LABEL: sil hidden [noinline] [ossa] @$s18become_noncopyable6stepNCySiAA0D0Vz_SitF
 // CHECK: apply [musttail] {{.*}} : $@convention(thin) (@inout NC, Int) -> Int
 func stepNC(_ c: inout NC, _ budget: Int) -> Int {
   if budget == 0 { return c.i }

@@ -3,6 +3,13 @@
 // RUN: %target-codesign %t/a.out
 // RUN: %target-run %t/a.out | %FileCheck %s
 
+// Also verify the guaranteed tail call survives optimization: a 'become'-using
+// function is marked non-inlinable so the optimizer cannot copy the musttail
+// into a non-tail-position caller (which would be an invalid LLVM musttail).
+// RUN: %target-swiftc_driver -O -Xfrontend -enable-experimental-feature -Xfrontend Become -o %t/a.out.opt %s
+// RUN: %target-codesign %t/a.out.opt
+// RUN: %target-run %t/a.out.opt | %FileCheck %s
+
 // REQUIRES: executable_test
 // REQUIRES: swift_feature_Become
 

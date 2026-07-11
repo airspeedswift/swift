@@ -1018,6 +1018,15 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
   // Genuine tail call: mark it must-tail and emit a direct return so the apply
   // is immediately followed by the return, which LLVM requires for musttail.
   tailApply->setMustTailCall();
+
+  // A guaranteed tail call is only valid while the apply stays in tail position
+  // (immediately followed by a return of its result). Inlining this function
+  // into a non-tail-position caller would copy the 'musttail' apply somewhere it
+  // is no longer at the tail, producing invalid LLVM IR. Keep the guarantee (and
+  // avoid the miscompile) by not inlining functions that make a guaranteed tail
+  // call; the tail call itself is preserved.
+  F.setInlineStrategy(NoInline);
+
   B.createReturn(loc, directResults[0]);
 }
 
