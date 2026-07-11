@@ -1001,9 +1001,16 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
   // call must be immediately followed by a return) while tolerating SIL markers
   // that vanish during lowering.
   bool cleanTail = false;
+  // The call's result must be exactly what we return: either the single
+  // forwarded direct result is the tail apply, or the function returns 'Void'
+  // and the call forwards no results (its empty-tuple result is dropped).
+  bool resultIsTailCall =
+      tailApply &&
+      ((directResults.size() == 1 && directResults[0] == SILValue(tailApply)) ||
+       (directResults.empty() &&
+        F.getLoweredFunctionType()->getNumResults() == 0));
   if (SILBasicBlock *bb = B.getInsertionBB();
-      bb && tailApply && tailApply->getParent() == bb &&
-      directResults.size() == 1 && directResults[0] == SILValue(tailApply)) {
+      bb && resultIsTailCall && tailApply->getParent() == bb) {
     // Collect the instructions preceding the apply so we can tell which stack
     // allocations are dead by the time the call happens.
     llvm::SmallPtrSet<SILInstruction *, 16> beforeApply;

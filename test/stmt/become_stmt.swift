@@ -37,6 +37,13 @@ func stepNC(_ c: inout NC, _ budget: Int) -> Int {
   become stepNC(&c, budget - 1)
 }
 
+// A 'Void'-returning tail call is accepted (the call forwards no results).
+func voidLeaf(_ n: Int) {}
+func voidTail(_ n: Int) {
+  if n == 0 { return }
+  become voidLeaf(n - 1)
+}
+
 // 'become' requires a call expression.
 func notACall(_ n: Int) -> Int {
   become n // expected-error {{'become' requires a function or method call}}
