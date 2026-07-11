@@ -561,7 +561,7 @@ namespace sil_block {
   using SILInstApplyLayout = BCRecordLayout<
     SIL_INST_APPLY,
     BCFixed<3>,           // ApplyKind
-    BCFixed<2>,           // ApplyOptions
+    BCFixed<3>,           // ApplyOptions (must fit ApplyFlags::IsMustTail == 0x4)
     BCFixed<1>,           // HasArgumentLocs (1 = NumCallArguments source-loc records follow)
     SubstitutionMapIDField,  // substitution map
     TypeIDField,          // callee unsubstituted type
