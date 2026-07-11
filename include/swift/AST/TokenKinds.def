@@ -259,6 +259,7 @@ MISC(string_interpolation_anchor)
 MISC(kw_yield)
 MISC(kw_discard)
 MISC(kw_then)
+MISC(kw_become)
 SWIFT_KEYWORD(inout)
 
 // The following tokens are irrelevant for swiftSyntax and thus only declared

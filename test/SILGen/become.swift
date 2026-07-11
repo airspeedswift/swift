@@ -1,0 +1,13 @@
+// RUN: %target-swift-emit-silgen -enable-experimental-feature Become %s | %FileCheck %s
+
+// REQUIRES: swift_feature_Become
+
+func pong(_ n: Int) -> Int { return n }
+
+// A 'become' lowers to a tail 'apply' that is immediately followed by 'return'.
+// CHECK-LABEL: sil hidden [ossa] @$s6become4pingyS2iF
+// CHECK: [[R:%.*]] = apply [musttail] {{.*}} : $@convention(thin) (Int) -> Int
+// CHECK-NEXT: return [[R]]
+func ping(_ n: Int) -> Int {
+  become pong(n)
+}

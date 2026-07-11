@@ -593,6 +593,10 @@ public:
   /// statement.
   bool isContextualThenKeyword(bool preferExpr);
 
+  /// Whether the current token is the contextual keyword for a \c become
+  /// statement (guaranteed tail call).
+  bool isContextualBecomeKeyword(bool preferExpr);
+
   /// `discard self` is the only valid phrase, but we peek ahead for just any
   /// identifier after `discard` to determine if it's the statement. This helps
   /// us avoid interpreting `discard(self)` as the statement and not a call.
@@ -2030,6 +2034,7 @@ public:
   ParserResult<Stmt> parseStmtReturn(SourceLoc tryLoc);
   ParserResult<Stmt> parseStmtYield(SourceLoc tryLoc);
   ParserResult<Stmt> parseStmtThen(SourceLoc tryLoc);
+  ParserResult<Stmt> parseStmtBecome(SourceLoc tryLoc);
   ParserResult<Stmt> parseStmtThrow(SourceLoc tryLoc);
   ParserResult<Stmt> parseStmtDiscard();
   ParserResult<Stmt> parseStmtDefer();

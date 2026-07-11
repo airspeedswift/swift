@@ -170,6 +170,7 @@ void DiagnosticEmitter::emitMissingConsumeInDiscardingContext(
       case StmtKind::Yield:
       case StmtKind::Break:
       case StmtKind::Then:
+      case StmtKind::Become:
       case StmtKind::Fail:
       case StmtKind::PoundAssert:
         return true;

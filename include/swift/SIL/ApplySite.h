@@ -744,6 +744,12 @@ public:
     return getApplyOptions().contains(ApplyFlags::DoesNotAwait);
   }
 
+  /// Return whether this apply is a guaranteed tail call (from a 'become'
+  /// statement) that must lower to an LLVM musttail call.
+  bool isMustTailCall() const {
+    return getApplyOptions().contains(ApplyFlags::IsMustTail);
+  }
+
   /// Return the SILParameterInfo for this operand in the callee function.
   SILParameterInfo getArgumentParameterInfo(const Operand &oper) const {
     assert(!getArgumentConvention(oper).isIndirectOutParameter() &&

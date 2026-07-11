@@ -510,6 +510,12 @@ public:
     return p;
   }
 
+  ASTScopeImpl *visitBecomeStmt(BecomeStmt *bs, ASTScopeImpl *p,
+                                ScopeCreator &scopeCreator) {
+    visitExpr(bs->getResult(), p, scopeCreator);
+    return p;
+  }
+
   ASTScopeImpl *visitDeferStmt(DeferStmt *ds, ASTScopeImpl *p,
                                ScopeCreator &scopeCreator) {
     visitFuncDecl(ds->getTempDecl(), p, scopeCreator);

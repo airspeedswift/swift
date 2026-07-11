@@ -1423,6 +1423,8 @@ ERROR(expected_expr_after_repeat, none,
       "expected expression after 'repeat'", ())
 ERROR(expected_expr_after_then,none,
       "expected expression after 'then'", ())
+ERROR(expected_expr_after_become,none,
+      "expected expression after 'become'", ())
 
 WARNING(unindented_code_after_then,none,
         "expression following 'then' is treated as an argument of "

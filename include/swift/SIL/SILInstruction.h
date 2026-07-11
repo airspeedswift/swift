@@ -2755,7 +2755,11 @@ enum class ApplyFlags : uint8_t {
   DoesNotThrow = 0x1,
 
   /// This is a call to a 'reasync' function that is known not to 'await'.
-  DoesNotAwait = 0x2
+  DoesNotAwait = 0x2,
+
+  /// This apply is a guaranteed tail call (from a 'become' statement). It must
+  /// be lowered to an LLVM 'musttail' call.
+  IsMustTail = 0x4
 };
 
 using ApplyOptions = OptionSet<ApplyFlags>;
@@ -2781,7 +2785,7 @@ class ApplyInstBase<Impl, Base, false> : public Base {
   const GenericSpecializationInformation *SpecializationInfo;
 
   /// Stores an ApplyOptions.
-  unsigned Options: 2;
+  unsigned Options: 3;
 
   /// Whether this apply has trailing per-argument SILLocation storage.
   /// When true, `numTrailingObjects(SILLocation)` is `NumCallArguments`
@@ -2906,6 +2910,21 @@ public:
 
   bool isNonAsync() const {
     return getApplyOptions().contains(ApplyFlags::DoesNotAwait);
+  }
+
+  /// Whether this apply is a guaranteed tail call that must lower to a musttail
+  /// call (i.e. it came from a 'become' statement).
+  bool isMustTailCall() const {
+    return getApplyOptions().contains(ApplyFlags::IsMustTail);
+  }
+
+  void setMustTailCall(bool flag = true) {
+    auto options = getApplyOptions();
+    if (flag)
+      options |= ApplyFlags::IsMustTail;
+    else
+      options -= ApplyFlags::IsMustTail;
+    setApplyOptions(options);
   }
 
   /// The operand number of the first argument.

@@ -2329,6 +2329,13 @@ public:
 
   void emitReturnExpr(SILLocation loc, Expr *ret);
 
+  /// Emit a 'become' statement: a guaranteed tail call. Emits the call as an
+  /// apply marked 'must-tail', verifies there is nothing to clean up after the
+  /// call, and emits a direct 'return' so the apply is immediately followed by
+  /// the return (a requirement for LLVM musttail). Diagnoses if the call
+  /// cannot be guaranteed as a tail call.
+  void emitBecomeStmt(SILLocation loc, BecomeStmt *S);
+
   bool
   emitBorrowOrMutateAccessorResult(SILLocation loc, Expr *ret,
                                    SmallVectorImpl<SILValue> &directResults);

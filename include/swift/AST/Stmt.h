@@ -402,6 +402,36 @@ public:
   static bool classof(const Stmt *S) { return S->getKind() == StmtKind::Then; }
 };
 
+/// The statement `become <expr>`, where <expr> is a call. This requests a
+/// guaranteed tail call: the call is compiled to an LLVM `musttail` call, or
+/// the compiler emits an error explaining why it cannot. Experimental,
+/// gated behind the 'Become' feature.
+class BecomeStmt : public Stmt {
+  SourceLoc BecomeLoc;
+  Expr *Result;
+
+  BecomeStmt(SourceLoc becomeLoc, Expr *result, bool isImplicit)
+      : Stmt(StmtKind::Become, isImplicit), BecomeLoc(becomeLoc),
+        Result(result) {
+    assert(Result && "Must have non-null result");
+  }
+
+public:
+  static BecomeStmt *createParsed(ASTContext &ctx, SourceLoc becomeLoc,
+                                  Expr *result);
+
+  SourceLoc getBecomeLoc() const { return BecomeLoc; }
+
+  SourceRange getSourceRange() const;
+
+  Expr *getResult() const { return Result; }
+  void setResult(Expr *e) { Result = e; }
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == StmtKind::Become;
+  }
+};
+
 /// DeferStmt - A 'defer' statement.  This runs the substatement it contains
 /// when the enclosing scope is exited.
 ///

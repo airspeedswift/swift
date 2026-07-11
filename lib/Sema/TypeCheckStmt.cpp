@@ -1510,6 +1510,34 @@ public:
     return TS;
   }
 
+  Stmt *visitBecomeStmt(BecomeStmt *BS) {
+    // 'become' transfers control like 'return', so it isn't valid in a defer.
+    if (isInDefer()) {
+      getASTContext().Diags.diagnose(BS->getBecomeLoc(),
+                                     diag::jump_out_of_defer, "become");
+      return BS;
+    }
+
+    auto TheFunc = AnyFunctionRef::fromDeclContext(DC);
+    if (!TheFunc) {
+      getASTContext().Diags.diagnose(BS->getBecomeLoc(),
+                                     diag::become_outside_of_function);
+      return BS;
+    }
+
+    // Type-check the tail-call expression against the function's result type,
+    // exactly as we would a returned expression.
+    auto *E = BS->getResult();
+    Type ResultTy = TheFunc->getBodyResultType();
+    if (ResultTy) {
+      TypeChecker::typeCheckExpression(E, DC, {ResultTy, CTP_ReturnStmt});
+    } else {
+      TypeChecker::typeCheckExpression(E, DC);
+    }
+    BS->setResult(E);
+    return BS;
+  }
+
   Stmt *visitThrowStmt(ThrowStmt *TS) {
     // Coerce the operand to the exception type.
     auto E = TS->getSubExpr();

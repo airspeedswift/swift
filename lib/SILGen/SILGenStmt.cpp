@@ -932,6 +932,95 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
   Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
 }
 
+void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
+  Expr *E = S->getResult();
+
+  // Guaranteed tail calls with an indirect (address-only) result are not yet
+  // supported; fall back to an ordinary return so we still produce valid SIL.
+  if (F.getConventions().hasIndirectSILResults()) {
+    diagnose(getASTContext(), S->getBecomeLoc(), diag::become_indirect_result);
+    emitReturnExpr(loc, E);
+    return;
+  }
+
+  auto retTy = E->getType()->getCanonicalType();
+  AbstractionPattern origRetTy = TypeContext
+    ? TypeContext->OrigType.getFunctionResultType()
+    : AbstractionPattern(retTy);
+
+  // If the call result would need reabstraction to match the enclosing
+  // function's result type, reabstraction code would run between the call and
+  // the return, so we can't guarantee a tail call.
+  if (getLoweredType(origRetTy, retTy) != getLoweredType(retTy)) {
+    diagnose(getASTContext(), S->getBecomeLoc(), diag::become_needs_reabstraction);
+    emitReturnExpr(loc, E);
+    return;
+  }
+
+  CleanupLocation cleanupLoc(E);
+  SmallVector<SILValue, 4> directResults;
+  ApplyInst *tailApply = nullptr;
+  bool hasTrailingCleanup = false;
+  {
+    FullExpr scope(Cleanups, cleanupLoc);
+    FormalEvaluationScope writeback(*this);
+
+    // Remember where we are so we can find the call we're about to emit.
+    SILBasicBlock *startBB = B.getInsertionBB();
+    SILInstruction *marker =
+        (startBB && !startBB->empty()) ? &startBB->back() : nullptr;
+
+    RValue RV = emitRValue(E);
+    std::move(RV)
+        .ensurePlusOne(*this, cleanupLoc)
+        .forwardAll(*this, directResults);
+
+    // The tail call is the last apply emitted while lowering the expression.
+    if (SILBasicBlock *bb = B.getInsertionBB()) {
+      auto it = (bb == startBB && marker) ? std::next(marker->getIterator())
+                                          : bb->begin();
+      for (; it != bb->end(); ++it) {
+        if (auto *ai = dyn_cast<ApplyInst>(&*it))
+          tailApply = ai;
+      }
+    }
+
+    // A guaranteed tail call reuses the frame, so nothing may run after it on
+    // the normal return path. Any cleanup still active above the epilog's
+    // cleanup depth (a borrowed argument, a live local, an open formal access,
+    // an unforwarded temporary, ...) is exactly such trailing work. This is the
+    // same range the epilog itself requires to be empty.
+    hasTrailingCleanup = Cleanups.hasAnyActiveCleanups(Cleanups.getCleanupsDepth(),
+                                                       ReturnDest.getDepth());
+  } // scopes close here, popping/emitting the above temporaries (none if clean)
+
+  bool cleanTail = tailApply && !hasTrailingCleanup &&
+                   directResults.size() == 1 &&
+                   directResults[0] == SILValue(tailApply);
+
+  if (!tailApply) {
+    diagnose(getASTContext(), S->getBecomeLoc(), diag::become_requires_call);
+  } else if (!cleanTail) {
+    diagnose(getASTContext(), S->getBecomeLoc(),
+             diag::become_cleanup_after_call);
+  }
+
+  if (!B.hasValidInsertionPoint())
+    return;
+
+  // On error, route through the normal epilog so we still emit well-formed SIL
+  // (all cleanups run, then the shared return).
+  if (!cleanTail) {
+    Cleanups.emitBranchAndCleanups(ReturnDest, loc, directResults);
+    return;
+  }
+
+  // Genuine tail call: mark it must-tail and emit a direct return so the apply
+  // is immediately followed by the return, which LLVM requires for musttail.
+  tailApply->setMustTailCall();
+  B.createReturn(loc, directResults[0]);
+}
+
 void StmtEmitter::visitReturnStmt(ReturnStmt *S) {
   SILLocation Loc = S->isImplicit() ?
                       (SILLocation)ImplicitReturnLocation(S) :
@@ -946,6 +1035,11 @@ void StmtEmitter::visitReturnStmt(ReturnStmt *S) {
     SGF.emitIgnoredExpr(S->getResult());
   else
     SGF.emitReturnExpr(Loc, S->getResult());
+}
+
+void StmtEmitter::visitBecomeStmt(BecomeStmt *S) {
+  SILLocation Loc = RegularLocation(S);
+  SGF.emitBecomeStmt(Loc, S);
 }
 
 void StmtEmitter::visitThrowStmt(ThrowStmt *S) {

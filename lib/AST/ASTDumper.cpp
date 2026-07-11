@@ -3342,6 +3342,12 @@ public:
     printFoot();
   }
 
+  void visitBecomeStmt(BecomeStmt *S, Label label) {
+    printCommon(S, "become_stmt", label);
+    printRec(S->getResult(), Label::optional("result"));
+    printFoot();
+  }
+
   void visitDeferStmt(DeferStmt *S, Label label) {
     printCommon(S, "defer_stmt", label);
     printRec(S->getTempDecl(), Label::optional("temp_decl"));

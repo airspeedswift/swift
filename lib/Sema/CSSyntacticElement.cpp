@@ -1183,6 +1183,15 @@ private:
   UNSUPPORTED_STMT(Yield)
 #undef UNSUPPORTED_STMT
 
+  void visitBecomeStmt(BecomeStmt *S) {
+    // 'become' (guaranteed tail call) is only supported in ordinary function
+    // and method bodies, which are checked by StmtChecker rather than the
+    // constraint solver.
+    cs.getASTContext().Diags.diagnose(S->getBecomeLoc(),
+                                      diag::become_outside_of_function);
+    hadError = true;
+  }
+
 private:
   ContextualTypeInfo getContextForCondition() const {
     auto boolDecl = cs.getASTContext().getBoolDecl();
@@ -2113,6 +2122,11 @@ private:
   }
   UNSUPPORTED_STMT(Yield)
 #undef UNSUPPORTED_STMT
+
+  ASTNode visitBecomeStmt(BecomeStmt *S) {
+    // Rejected during constraint generation; nothing to apply.
+    return S;
+  }
 
 public:
   /// Apply the solution to the context and return updated statement.

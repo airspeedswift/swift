@@ -84,6 +84,10 @@ protected:
 
   bool UseProfilingThunk = false;
 
+  /// Whether this call is a guaranteed tail call (from a 'become' statement)
+  /// and must be emitted as an LLVM musttail call.
+  bool IsMustTail = false;
+
   /// The basic block to which the call to a potentially throwing foreign
   /// function should jump to continue normal execution of the program.
   llvm::BasicBlock *invokeNormalDest = nullptr;
@@ -132,6 +136,10 @@ public:
   virtual ~CallEmission();
 
   const Callee &getCallee() const { return CurCallee; }
+
+  /// Mark this call as a guaranteed tail call, to be lowered to an LLVM
+  /// musttail call.
+  void setMustTail(bool v = true) { IsMustTail = v; }
 
   SubstitutionMap getSubstitutions() const {
     return CurCallee.getSubstitutions();

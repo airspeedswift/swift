@@ -1982,6 +1982,15 @@ Stmt *Traversal::visitThenStmt(ThenStmt *TS) {
   return TS;
 }
 
+Stmt *Traversal::visitBecomeStmt(BecomeStmt *BS) {
+  auto *E = doIt(BS->getResult());
+  if (!E)
+    return nullptr;
+
+  BS->setResult(E);
+  return BS;
+}
+
 Stmt *Traversal::visitDeferStmt(DeferStmt *DS) {
   if (doIt(DS->getTempDecl()))
     return nullptr;

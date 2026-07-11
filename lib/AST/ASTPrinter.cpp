@@ -6163,6 +6163,11 @@ void PrintAST::visitThrowStmt(ThrowStmt *stmt) {
   visit(stmt->getSubExpr());
 }
 
+void PrintAST::visitBecomeStmt(BecomeStmt *stmt) {
+  Printer.printKeyword("become", Options, " ");
+  visit(stmt->getResult());
+}
+
 void PrintAST::visitDiscardStmt(DiscardStmt *stmt) {
   Printer << "discard" << " ";
   visit(stmt->getSubExpr());

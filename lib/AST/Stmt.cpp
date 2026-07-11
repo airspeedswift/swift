@@ -55,6 +55,8 @@ StringRef Stmt::getDescriptiveKindName(StmtKind K) {
     return "yield";
   case StmtKind::Then:
     return "then";
+  case StmtKind::Become:
+    return "become";
   case StmtKind::Defer:
     return "defer";
   case StmtKind::If:
@@ -374,6 +376,15 @@ ThenStmt *ThenStmt::createImplicit(ASTContext &ctx, Expr *result) {
 
 SourceRange ThenStmt::getSourceRange() const {
   return SourceRange::combine(ThenLoc, getResult()->getSourceRange());
+}
+
+BecomeStmt *BecomeStmt::createParsed(ASTContext &ctx, SourceLoc becomeLoc,
+                                     Expr *result) {
+  return new (ctx) BecomeStmt(becomeLoc, result, /*isImplicit*/ false);
+}
+
+SourceRange BecomeStmt::getSourceRange() const {
+  return SourceRange::combine(BecomeLoc, getResult()->getSourceRange());
 }
 
 SourceLoc ThrowStmt::getEndLoc() const { return SubExpr->getEndLoc(); }

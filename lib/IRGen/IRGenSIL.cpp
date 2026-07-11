@@ -4049,6 +4049,10 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
   // Add all those arguments.
   emission->setArgs(llArgs, false, &witnessMetadata);
 
+  // A 'become' guaranteed tail call must be lowered to an LLVM musttail call.
+  if (site.isMustTailCall())
+    emission->setMustTail();
+
   SILInstruction *i = site.getInstruction();
 
   Explosion result;

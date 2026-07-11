@@ -3764,6 +3764,14 @@ llvm::CallBase *CallEmission::emitCallSite() {
   if (invokeNormalDest)
     IGF.Builder.emitBlock(invokeNormalDest);
 
+  // A guaranteed tail call (from a 'become' statement) must be lowered to an
+  // LLVM musttail call. The SILGen lowering guarantees the call is immediately
+  // followed by a matching return.
+  if (IsMustTail) {
+    if (auto *callInst = dyn_cast<llvm::CallInst>(call))
+      callInst->setTailCallKind(llvm::CallInst::TCK_MustTail);
+  }
+
   // Make coroutines calls opaque to LLVM analysis.
   if (IsCoroutine) {
     // Go back and insert some instructions right before the call.

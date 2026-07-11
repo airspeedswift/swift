@@ -59,6 +59,7 @@ bool Parser::isStartOfStmt(bool preferExpr) {
   case tok::kw_default:
   case tok::kw_yield:
   case tok::kw_discard:
+  case tok::kw_become:
   case tok::pound_assert:
   case tok::pound_if:
   case tok::pound_warning:
@@ -97,7 +98,8 @@ bool Parser::isStartOfStmt(bool preferExpr) {
     if (!peekToken().is(tok::colon)) {
       // "yield", "discard", and "then" in the right context begins a statement.
       if (isContextualYieldKeyword() || isContextualDiscardKeyword() ||
-          isContextualThenKeyword(preferExpr)) {
+          isContextualThenKeyword(preferExpr) ||
+          isContextualBecomeKeyword(preferExpr)) {
         return true;
       }
       return false;
@@ -567,6 +569,9 @@ ParserResult<Stmt> Parser::parseStmt() {
   if (isContextualThenKeyword(/*preferExpr*/ false))
     Tok.setKind(tok::kw_then);
 
+  if (isContextualBecomeKeyword(/*preferExpr*/ false))
+    Tok.setKind(tok::kw_become);
+
   // This needs to handle everything that `Parser::isStartOfStmt()` accepts as
   // start of statement.
   switch (Tok.getKind()) {
@@ -596,6 +601,9 @@ ParserResult<Stmt> Parser::parseStmt() {
   case tok::kw_then:
     if (LabelInfo) diagnose(LabelInfo.Loc, diag::invalid_label_on_stmt);
     return parseStmtThen(tryLoc);
+  case tok::kw_become:
+    if (LabelInfo) diagnose(LabelInfo.Loc, diag::invalid_label_on_stmt);
+    return parseStmtBecome(tryLoc);
   case tok::kw_throw:
     if (LabelInfo) diagnose(LabelInfo.Loc, diag::invalid_label_on_stmt);
     return parseStmtThrow(tryLoc);
@@ -996,6 +1004,70 @@ ParserResult<Stmt> Parser::parseStmtThen(SourceLoc tryLoc) {
 
   return makeParserResult(
       result, ThenStmt::createParsed(Context, thenLoc, result.get()));
+}
+
+bool Parser::isContextualBecomeKeyword(bool preferExpr) {
+  if (!Context.LangOpts.hasFeature(Feature::Become))
+    return false;
+
+  if (!Tok.isContextualKeyword("become"))
+    return false;
+
+  // If we want to prefer an expr, and aren't at the start of a newline, then
+  // don't parse a BecomeStmt.
+  if (preferExpr && !Tok.isAtStartOfLine())
+    return false;
+
+  // 'become' immediately followed by '('/'[' is a function/subscript call. If
+  // immediately followed by '.', it's a member access.
+  if (peekToken().isAny(tok::l_paren, tok::l_square, tok::period)) {
+    auto tokEndLoc = Lexer::getLocForEndOfToken(SourceMgr, Tok.getLoc());
+    return peekToken().getLoc() != tokEndLoc;
+  }
+
+  // 'become' followed by '{' is a trailing closure on a function call.
+  if (peekToken().is(tok::l_brace))
+    return false;
+
+  // If we have 'become' followed by an infix or postfix operator, we know this
+  // must be an expression.
+  if (peekToken().isBinaryOperatorLike() || peekToken().isPostfixOperatorLike())
+    return false;
+
+  // These act like binary operators.
+  if (peekToken().isAny(tok::kw_is, tok::kw_as))
+    return false;
+
+  return true;
+}
+
+/// parseStmtBecome
+///
+/// stmt-become:
+///   'become' expr
+///
+ParserResult<Stmt> Parser::parseStmtBecome(SourceLoc tryLoc) {
+  SourceLoc becomeLoc = consumeToken(tok::kw_become);
+
+  auto exprLoc = Tok.getLoc();
+
+  ParserResult<Expr> result = parseExpr(diag::expected_expr_after_become);
+  bool hasCodeCompletion = result.hasCodeCompletion();
+
+  // If we couldn't parse an expr, fill the gap with an ErrorExpr, as
+  // BecomeStmt expects an expression node.
+  if (result.isNull())
+    result = makeParserErrorResult(new (Context) ErrorExpr(exprLoc));
+
+  if (tryLoc.isValid()) {
+    diagnose(tryLoc, diag::try_on_stmt, "become");
+  }
+
+  if (hasCodeCompletion)
+    result.setHasCodeCompletionAndIsError();
+
+  return makeParserResult(
+      result, BecomeStmt::createParsed(Context, becomeLoc, result.get()));
 }
 
 /// parseStmtThrow

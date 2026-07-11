@@ -1802,6 +1802,8 @@ public:
       *this << "[nothrow] ";
     if (AI->isNonAsync())
       *this << "[noasync] ";
+    if (AI->isMustTailCall())
+      *this << "[musttail] ";
     if (auto isolationCrossing = AI->getIsolationCrossing()) {
       auto callerIsolation = isolationCrossing->getCallerIsolation();
       if (callerIsolation != ActorIsolation::Unspecified) {

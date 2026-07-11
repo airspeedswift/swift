@@ -451,6 +451,9 @@ EXPERIMENTAL_FEATURE(PlaygroundExtendedCallbacks, true)
 /// Enable 'then' statements.
 EXPERIMENTAL_FEATURE(ThenStatements, false)
 
+/// Enable 'become' statements for guaranteed tail calls.
+EXPERIMENTAL_FEATURE(Become, true)
+
 /// Enable 'do' expressions.
 EXPERIMENTAL_FEATURE(DoExpressions, false)
 

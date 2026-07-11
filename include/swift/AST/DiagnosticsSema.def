@@ -1475,6 +1475,9 @@ ERROR(out_of_place_then_stmt,none,
       "'then' may only appear as the last statement in an 'if', 'switch', or "
       "'do' expression", ())
 
+ERROR(become_outside_of_function,none,
+      "'become' may only be used inside a function or method body", ())
+
 ERROR(did_not_call_function_value,none,
       "function value was used as a property; add () to call it",
       ())

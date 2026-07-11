@@ -7160,6 +7160,12 @@ bool SILParser::parseCallInstruction(SILLocation InstLoc,
       continue;
     }
 
+    if (AttrName == "musttail") {
+      assert(!bool(AttrValue));
+      ApplyOpts |= ApplyFlags::IsMustTail;
+      continue;
+    }
+
     if (AttrName == "callee_guaranteed") {
       assert(!bool(AttrValue));
       PartialApplyConvention = ParameterConvention::Direct_Guaranteed;

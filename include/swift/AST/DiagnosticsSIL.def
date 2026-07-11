@@ -1388,5 +1388,20 @@ ERROR(invalid_multiple_return_borrow_accessor, none,
 ERROR(unsupported_borrow_abstraction, none,
       "cannot witness borrow requirement for result type %0",
       (Type))
+
+// 'become' (guaranteed tail call) diagnostics.
+ERROR(become_requires_call, none,
+      "'become' requires a function or method call", ())
+ERROR(become_cleanup_after_call, none,
+      "'become' cannot guarantee a tail call here because a value would need "
+      "to be destroyed after the call returns; ensure all arguments are "
+      "'consuming' or trivial and no other values are live across the call",
+      ())
+ERROR(become_needs_reabstraction, none,
+      "'become' cannot guarantee a tail call because the call result needs "
+      "reabstraction to match the enclosing function's result type", ())
+ERROR(become_indirect_result, none,
+      "'become' does not yet support functions with an indirectly-returned "
+      "result type", ())
 #define UNDEFINE_DIAGNOSTIC_MACROS
 #include "DefineDiagnosticMacros.h"
