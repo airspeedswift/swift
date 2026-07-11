@@ -985,6 +985,49 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
     }
   } // expr scope closes here, emitting this expression's teardown
 
+  // A throwing tail call ('become try f()') lowers to a 'try_apply' terminator:
+  // after emitting it we are positioned in its normal successor, and the
+  // try_apply is the terminator of that block's single predecessor. Handle that
+  // shape here -- the apply-in-this-block search above found nothing.
+  TryApplyInst *tailTryApply = nullptr;
+  if (!tailApply) {
+    if (SILBasicBlock *normalBB = B.getInsertionBB())
+      if (SILBasicBlock *pred = normalBB->getSinglePredecessorBlock())
+        if (auto *ta = dyn_cast<TryApplyInst>(pred->getTerminator()))
+          if (ta->getNormalBB() == normalBB)
+            tailTryApply = ta;
+  }
+
+  if (tailTryApply) {
+    // A guaranteed *throwing* tail call would have to be a musttail call that
+    // forwards the callee's thrown error as our own. That requires the
+    // 'swifttailcc' calling convention (as async uses): the AArch64/x86-64
+    // backends cannot perform tail-call elimination on a 'swiftcc' call that
+    // carries a 'swifterror' argument, so a plain 'swiftcc' musttail of a
+    // throwing function is rejected by the backend. Applying 'swifttailcc' to
+    // throwing functions is viral (the callee must match) and is not yet
+    // implemented, so diagnose rather than emit a call the backend will reject.
+    diagnose(getASTContext(), S->getBecomeLoc(),
+             diag::become_throwing_unsupported);
+
+    // Emit well-formed recovery SIL: flush the normal-edge cleanups and return
+    // the call's result (the error edge already rethrows). This is an ordinary
+    // (non-tail) return; the diagnostic above fails the compilation.
+    if (B.hasValidInsertionPoint()) {
+      Cleanups.emitCleanupsForReturn(cleanupLoc, NotForUnwind);
+      SILValue result;
+      if (directResults.size() == 1) {
+        result = directResults[0];
+      } else {
+        auto resultTy =
+            F.getConventions().getSILResultType(getTypeExpansionContext());
+        result = B.createTuple(loc, resultTy, directResults);
+      }
+      B.createReturn(loc, result);
+    }
+    return;
+  }
+
   // Emit the rest of the return-path teardown (parameters, enclosing locals,
   // ...) right here, so everything a normal return would run is materialized
   // immediately after the call, where we can classify it.

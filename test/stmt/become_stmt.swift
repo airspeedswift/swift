@@ -44,6 +44,14 @@ func voidTail(_ n: Int) {
   become voidLeaf(n - 1)
 }
 
+// A throwing tail call is not yet supported (it needs 'swifttailcc').
+enum E: Error { case x }
+func throwingLeaf(_ n: Int) throws(E) -> Int { throw .x }
+func throwingTail(_ n: Int) throws(E) -> Int {
+  become try throwingLeaf(n)
+  // expected-error@-1 {{'become' does not yet support a throwing tail call}}
+}
+
 // 'become' requires a call expression.
 func notACall(_ n: Int) -> Int {
   become n // expected-error {{'become' requires a function or method call}}

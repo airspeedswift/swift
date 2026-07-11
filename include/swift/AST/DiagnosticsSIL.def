@@ -1403,5 +1403,9 @@ ERROR(become_needs_reabstraction, none,
 ERROR(become_indirect_result, none,
       "'become' does not yet support functions with an indirectly-returned "
       "result type", ())
+ERROR(become_throwing_unsupported, none,
+      "'become' does not yet support a throwing tail call; the target's "
+      "guaranteed tail call needs the 'swifttailcc' calling convention, which "
+      "is not yet applied to throwing functions", ())
 #define UNDEFINE_DIAGNOSTIC_MACROS
 #include "DefineDiagnosticMacros.h"
