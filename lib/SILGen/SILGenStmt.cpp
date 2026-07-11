@@ -960,7 +960,6 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
   CleanupLocation cleanupLoc(E);
   SmallVector<SILValue, 4> directResults;
   ApplyInst *tailApply = nullptr;
-  bool hasTrailingCleanup = false;
   {
     FullExpr scope(Cleanups, cleanupLoc);
     FormalEvaluationScope writeback(*this);
@@ -984,19 +983,77 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
           tailApply = ai;
       }
     }
+  } // expr scope closes here, emitting this expression's teardown
 
-    // A guaranteed tail call reuses the frame, so nothing may run after it on
-    // the normal return path. Any cleanup still active above the epilog's
-    // cleanup depth (a borrowed argument, a live local, an open formal access,
-    // an unforwarded temporary, ...) is exactly such trailing work. This is the
-    // same range the epilog itself requires to be empty.
-    hasTrailingCleanup = Cleanups.hasAnyActiveCleanups(Cleanups.getCleanupsDepth(),
-                                                       ReturnDest.getDepth());
-  } // scopes close here, popping/emitting the above temporaries (none if clean)
+  // Emit the rest of the return-path teardown (parameters, enclosing locals,
+  // ...) right here, so everything a normal return would run is materialized
+  // immediately after the call, where we can classify it.
+  if (B.hasValidInsertionPoint())
+    Cleanups.emitCleanupsForReturn(cleanupLoc, NotForUnwind);
 
-  bool cleanTail = tailApply && !hasTrailingCleanup &&
-                   directResults.size() == 1 &&
-                   directResults[0] == SILValue(tailApply);
+  // Decide whether this is a genuine guaranteed tail call. It is iff, after
+  // sinking stack deallocations that are dead once the call's operands have been
+  // formed, every instruction between the apply and the return lowers to no
+  // machine code (scope-enders, debug markers, empty aggregates). Anything that
+  // emits real teardown after the call -- a destroy, release, store, or call --
+  // means the frame is still live past the call, so it cannot be a musttail.
+  // This mirrors what LLVM's musttail verifier requires at the IR level (the
+  // call must be immediately followed by a return) while tolerating SIL markers
+  // that vanish during lowering.
+  bool cleanTail = false;
+  if (SILBasicBlock *bb = B.getInsertionBB();
+      bb && tailApply && tailApply->getParent() == bb &&
+      directResults.size() == 1 && directResults[0] == SILValue(tailApply)) {
+    // Collect the instructions preceding the apply so we can tell which stack
+    // allocations are dead by the time the call happens.
+    llvm::SmallPtrSet<SILInstruction *, 16> beforeApply;
+    for (auto &inst : *bb) {
+      if (&inst == tailApply)
+        break;
+      beforeApply.insert(&inst);
+    }
+
+    // Sink a trailing 'dealloc_stack' to before the apply when the storage it
+    // frees is not used at or after the call (its only remaining use is the
+    // dealloc itself). This is the "the borrow is an illusion" case: a trivial
+    // value has already been loaded out of the temporary before the call.
+    SmallVector<DeallocStackInst *, 4> toSink;
+    for (auto it = std::next(tailApply->getIterator()); it != bb->end(); ++it) {
+      auto *ds = dyn_cast<DeallocStackInst>(&*it);
+      if (!ds)
+        continue;
+      bool deadAcrossCall = true;
+      for (auto *use : ds->getOperand()->getUses()) {
+        SILInstruction *user = use->getUser();
+        if (user != ds && !beforeApply.contains(user)) {
+          deadAcrossCall = false;
+          break;
+        }
+      }
+      if (deadAcrossCall)
+        toSink.push_back(ds);
+    }
+    for (auto *ds : toSink)
+      ds->moveBefore(tailApply);
+
+    // Now classify whatever remains after the apply.
+    cleanTail = true;
+    for (auto it = std::next(tailApply->getIterator()); it != bb->end(); ++it) {
+      SILInstruction &inst = *it;
+      // Scope-enders and debug markers lower to nothing between the call and the
+      // return.
+      if (isa<EndAccessInst>(inst) || isa<EndBorrowInst>(inst) ||
+          isa<DebugValueInst>(inst))
+        continue;
+      // Pure, effect-free value instructions (e.g. an unused empty 'tuple ()')
+      // also lower to nothing.
+      if (!inst.mayHaveSideEffects() && !inst.mayReadFromMemory() &&
+          !inst.mayWriteToMemory())
+        continue;
+      cleanTail = false;
+      break;
+    }
+  }
 
   if (!tailApply) {
     diagnose(getASTContext(), S->getBecomeLoc(), diag::become_requires_call);
@@ -1008,26 +1065,29 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
   if (!B.hasValidInsertionPoint())
     return;
 
-  // On error, route through the normal epilog so we still emit well-formed SIL
-  // (all cleanups run, then the shared return).
-  if (!cleanTail) {
-    Cleanups.emitBranchAndCleanups(ReturnDest, loc, directResults);
-    return;
-  }
-
-  // Genuine tail call: mark it must-tail and emit a direct return so the apply
-  // is immediately followed by the return, which LLVM requires for musttail.
-  tailApply->setMustTailCall();
-
   // A guaranteed tail call is only valid while the apply stays in tail position
   // (immediately followed by a return of its result). Inlining this function
   // into a non-tail-position caller would copy the 'musttail' apply somewhere it
   // is no longer at the tail, producing invalid LLVM IR. Keep the guarantee (and
   // avoid the miscompile) by not inlining functions that make a guaranteed tail
   // call; the tail call itself is preserved.
-  F.setInlineStrategy(NoInline);
+  if (cleanTail) {
+    tailApply->setMustTailCall();
+    F.setInlineStrategy(NoInline);
+  }
 
-  B.createReturn(loc, directResults[0]);
+  // Emit the return. When the call is a genuine tail call this is adjacent to
+  // it (modulo markers that lower to nothing); otherwise the diagnosed error has
+  // already been produced and this just keeps the SIL well-formed.
+  SILValue result;
+  if (directResults.size() == 1) {
+    result = directResults[0];
+  } else {
+    auto resultTy =
+        F.getConventions().getSILResultType(getTypeExpansionContext());
+    result = B.createTuple(loc, resultTy, directResults);
+  }
+  B.createReturn(loc, result);
 }
 
 void StmtEmitter::visitReturnStmt(ReturnStmt *S) {
