@@ -4085,6 +4085,25 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
   } else {
     auto tryApplyInst = cast<TryApplyInst>(i);
 
+    // A guaranteed *throwing* tail call ('become try f()'): emit the musttail
+    // call followed by a verbatim forwarding 'ret', and drop the error branch
+    // entirely. Because 'musttail' requires the caller and callee signatures to
+    // match, the callee's return value (and its swifterror flag in x21) IS the
+    // caller's return value; the thrown error propagates as our own via the
+    // forwarded swifterror register. There is nothing to load, compare, or
+    // branch on.
+    if (site.isMustTailCall()) {
+      llvm::CallBase *call = emission->getLastEmittedCall();
+      emission->end();
+      (void)result.claimAll();
+      assert(call && "musttail become did not emit a call");
+      if (call->getType()->isVoidTy())
+        Builder.CreateRetVoid();
+      else
+        Builder.CreateRet(call);
+      return;
+    }
+
     // Load the error value.
     SILFunctionConventions substConv(substCalleeType, IGM.silConv);
     SILType errorType =

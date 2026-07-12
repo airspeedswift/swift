@@ -88,6 +88,10 @@ protected:
   /// and must be emitted as an LLVM musttail call.
   bool IsMustTail = false;
 
+  /// The raw LLVM call instruction emitted by emitCallSite(), captured so a
+  /// guaranteed tail call ('become') can forward its result verbatim via 'ret'.
+  llvm::CallBase *LastEmittedCall = nullptr;
+
   /// The basic block to which the call to a potentially throwing foreign
   /// function should jump to continue normal execution of the program.
   llvm::BasicBlock *invokeNormalDest = nullptr;
@@ -140,6 +144,10 @@ public:
   /// Mark this call as a guaranteed tail call, to be lowered to an LLVM
   /// musttail call.
   void setMustTail(bool v = true) { IsMustTail = v; }
+
+  /// The raw LLVM call emitted for this site (valid after the call is emitted).
+  /// Used by 'become' to forward a musttail call's result verbatim.
+  llvm::CallBase *getLastEmittedCall() const { return LastEmittedCall; }
 
   SubstitutionMap getSubstitutions() const {
     return CurCallee.getSubstitutions();

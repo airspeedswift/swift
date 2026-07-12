@@ -3761,6 +3761,7 @@ llvm::CallBase *CallEmission::emitCallSite() {
   }
 
   auto call = createCall(fnToCall, Args);
+  LastEmittedCall = call;
   if (invokeNormalDest)
     IGF.Builder.emitBlock(invokeNormalDest);
 

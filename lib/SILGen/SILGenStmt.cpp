@@ -932,6 +932,87 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
   Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
 }
 
+/// A 'dealloc_stack' in a try_apply successor is "dead across the call" if the
+/// storage it frees is not used at or after the call: every non-dealloc use of
+/// the storage precedes the try_apply. (Sibling 'dealloc_stack's of the same
+/// storage on the other edge don't count as a use.) Such a slot was only needed
+/// to form the call's operands, so freeing it before the tail call is valid.
+static bool becomeDeallocIsDeadAcrossCall(
+    DeallocStackInst *ds,
+    const llvm::SmallPtrSetImpl<SILInstruction *> &beforeApply) {
+  for (auto *use : ds->getOperand()->getUses()) {
+    SILInstruction *user = use->getUser();
+    if (user == ds || isa<DeallocStackInst>(user))
+      continue;
+    if (!beforeApply.contains(user))
+      return false;
+  }
+  return true;
+}
+
+/// Classify a successor block of a guaranteed-tail-call 'try_apply' (its normal
+/// or error edge) as a "clean tail": nothing between block entry and the
+/// terminator lowers to real machine code. 'dealloc_stack's whose storage is
+/// dead by the time the call is formed are tolerated (they will be sunk to
+/// before the try_apply); everything else must be a scope-ender, debug/lifetime
+/// marker, or pure effect-free value instruction. This is a pure predicate --
+/// it does not mutate the IR.
+///
+/// 'beforeApply' is the set of instructions preceding the try_apply in its own
+/// block (used to decide which deallocs are dead across the call).
+static bool becomeSuccessorIsCleanTail(
+    SILBasicBlock *succ, TryApplyInst *tryApply,
+    const llvm::SmallPtrSetImpl<SILInstruction *> &beforeApply) {
+  for (auto &inst : *succ) {
+    if (isa<TermInst>(inst))
+      break;
+    if (isa<EndAccessInst>(inst) || isa<EndBorrowInst>(inst) ||
+        isa<DebugValueInst>(inst) || isa<ExtendLifetimeInst>(inst))
+      continue;
+    if (auto *ds = dyn_cast<DeallocStackInst>(&inst)) {
+      if (becomeDeallocIsDeadAcrossCall(ds, beforeApply))
+        continue;
+      return false;
+    }
+    if (!inst.mayHaveSideEffects() && !inst.mayReadFromMemory() &&
+        !inst.mayWriteToMemory())
+      continue;
+    return false;
+  }
+  return true;
+}
+
+/// Determine whether the error edge of a guaranteed-tail-call 'try_apply'
+/// re-throws the callee's error as our own without running any teardown that
+/// lowers to machine code. The immediate error successor must be clean (per
+/// becomeSuccessorIsCleanTail) and either 'throw' the error argument directly,
+/// or forward it via a single 'br' to the function's shared throw epilogue
+/// (which SILGen has not yet terminated at this point). In both cases IRGen
+/// drops the error branch entirely for a musttail call -- the thrown error
+/// propagates as our own via the forwarded swifterror register -- so all that
+/// matters is that nothing between the call and the rethrow lowers to machine
+/// code.
+static bool becomeErrorEdgeRethrowsCleanly(
+    SILBasicBlock *errorBB, SILValue errorArg, TryApplyInst *tryApply,
+    const llvm::SmallPtrSetImpl<SILInstruction *> &beforeApply) {
+  if (errorBB->getNumArguments() != 1 ||
+      SILValue(errorBB->getArgument(0)) != errorArg)
+    return false;
+  if (!becomeSuccessorIsCleanTail(errorBB, tryApply, beforeApply))
+    return false;
+  TermInst *term = errorBB->getTerminator();
+  // Direct rethrow.
+  if (auto *thr = dyn_cast<ThrowInst>(term))
+    return thr->getOperand() == errorArg;
+  // Forwarding branch to the shared throw epilogue: 'br dest(errorArg)'. The
+  // destination block re-throws; we don't inspect it (it may not be terminated
+  // yet during SILGen), but the forwarded value must be exactly our error.
+  if (auto *br = dyn_cast<BranchInst>(term))
+    return br->getArgs().size() == 1 && br->getArgs()[0] == errorArg;
+  return false;
+}
+
+
 void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
   Expr *E = S->getResult();
 
@@ -999,20 +1080,21 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
   }
 
   if (tailTryApply) {
-    // A guaranteed *throwing* tail call would have to be a musttail call that
-    // forwards the callee's thrown error as our own. That requires the
-    // 'swifttailcc' calling convention (as async uses): the AArch64/x86-64
-    // backends cannot perform tail-call elimination on a 'swiftcc' call that
-    // carries a 'swifterror' argument, so a plain 'swiftcc' musttail of a
-    // throwing function is rejected by the backend. Applying 'swifttailcc' to
-    // throwing functions is viral (the callee must match) and is not yet
-    // implemented, so diagnose rather than emit a call the backend will reject.
-    diagnose(getASTContext(), S->getBecomeLoc(),
-             diag::become_throwing_unsupported);
+    // A guaranteed *throwing* tail call ('become try f()'). The throwing call
+    // lowered to a 'try_apply' terminator whose normal edge (the bb we're now
+    // in) carries the result and whose error edge rethrows to our own error
+    // dest. For this to be a genuine musttail we require both successor edges to
+    // be clean tails: the normal edge just returns the call's result and the
+    // error edge just rethrows the call's error, with nothing in between that
+    // lowers to real machine code. IRGen then emits 'musttail call ...; ret ...'
+    // and drops the error branch -- the thrown error propagates as our own via
+    // the forwarded swifterror register (x21 on AArch64). The LLVM backend has
+    // been taught to tail-call a musttail swiftcc call carrying a swifterror
+    // argument.
 
-    // Emit well-formed recovery SIL: flush the normal-edge cleanups and return
-    // the call's result (the error edge already rethrows). This is an ordinary
-    // (non-tail) return; the diagnostic above fails the compilation.
+    // Emit the return of the call's result into the (current) normal edge.
+    // The normal-edge cleanups were already emitted when the expression scope
+    // closed above; this just terminates the block.
     if (B.hasValidInsertionPoint()) {
       Cleanups.emitCleanupsForReturn(cleanupLoc, NotForUnwind);
       SILValue result;
@@ -1024,6 +1106,74 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
         result = B.createTuple(loc, resultTy, directResults);
       }
       B.createReturn(loc, result);
+    }
+
+    SILBasicBlock *normalBB = tailTryApply->getNormalBB();
+    SILBasicBlock *errorBB = tailTryApply->getErrorBB();
+
+    // Instructions preceding the try_apply in its own block, used to decide
+    // which trailing deallocs in the successors are dead across the call.
+    llvm::SmallPtrSet<SILInstruction *, 16> beforeApply;
+    for (auto &inst : *tailTryApply->getParent()) {
+      if (&inst == tailTryApply)
+        break;
+      beforeApply.insert(&inst);
+    }
+
+    // The normal edge must return exactly the call's result (its BB argument),
+    // and the error edge must re-throw exactly the call's error (its BB
+    // argument), possibly through a chain of clean forwarding blocks.
+    bool normalReturnsResult = false;
+    if (auto *ret = dyn_cast<ReturnInst>(normalBB->getTerminator()))
+      normalReturnsResult =
+          normalBB->getNumArguments() == 1 &&
+          ret->getOperand() == SILValue(normalBB->getArgument(0));
+    else if (isa<UnreachableInst>(normalBB->getTerminator()))
+      // '-> Never'-shaped normal edge (no result to forward): also acceptable.
+      normalReturnsResult = normalBB->getNumArguments() <= 1;
+
+    bool errorRethrows =
+        errorBB->getNumArguments() == 1 &&
+        becomeErrorEdgeRethrowsCleanly(
+            errorBB, SILValue(errorBB->getArgument(0)), tailTryApply,
+            beforeApply);
+
+    bool cleanThrowingTail =
+        normalReturnsResult && errorRethrows &&
+        becomeSuccessorIsCleanTail(normalBB, tailTryApply, beforeApply);
+
+    if (cleanThrowingTail) {
+      tailTryApply->setMustTailCall();
+      // See the non-throwing case: don't inline a function that makes a
+      // guaranteed tail call, or the musttail apply could be copied out of tail
+      // position, producing invalid LLVM IR.
+      F.setInlineStrategy(NoInline);
+
+      // Fix up stack nesting: the temporaries that were only needed to form the
+      // call's operands have a 'dealloc_stack' on *both* successor edges. IRGen
+      // drops both edges (it emits just 'musttail call; ret'), so keep a single
+      // 'dealloc_stack' per distinct storage moved to before the try_apply and
+      // erase the now-redundant copies on both edges. This keeps SIL stack
+      // nesting balanced (one alloc_stack, one dealloc_stack, before the tail
+      // call).
+      llvm::SmallPtrSet<SILValue, 4> sunk;
+      SmallVector<DeallocStackInst *, 8> deadDeallocs;
+      for (SILBasicBlock *edge : {normalBB, errorBB})
+        for (auto &inst : *edge)
+          if (auto *ds = dyn_cast<DeallocStackInst>(&inst))
+            if (becomeDeallocIsDeadAcrossCall(ds, beforeApply))
+              deadDeallocs.push_back(ds);
+      for (auto *ds : deadDeallocs) {
+        if (sunk.insert(ds->getOperand()).second)
+          // First dealloc of this storage: reuse it, moved before the call.
+          ds->moveBefore(tailTryApply);
+        else
+          // Redundant sibling-edge dealloc of the same storage: drop it.
+          ds->eraseFromParent();
+      }
+    } else {
+      diagnose(getASTContext(), S->getBecomeLoc(),
+               diag::become_cleanup_after_call);
     }
     return;
   }

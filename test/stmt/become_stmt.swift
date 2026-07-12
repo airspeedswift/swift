@@ -44,12 +44,13 @@ func voidTail(_ n: Int) {
   become voidLeaf(n - 1)
 }
 
-// A throwing tail call is not yet supported (it needs 'swifttailcc').
+// A throwing tail call ('become try f()') is accepted: it lowers to a musttail
+// 'try_apply' whose thrown error propagates as our own via the swifterror
+// register (see IRGen/become.swift for the emitted 'musttail call').
 enum E: Error { case x }
 func throwingLeaf(_ n: Int) throws(E) -> Int { throw .x }
 func throwingTail(_ n: Int) throws(E) -> Int {
   become try throwingLeaf(n)
-  // expected-error@-1 {{'become' does not yet support a throwing tail call}}
 }
 
 // 'become' requires a call expression.
