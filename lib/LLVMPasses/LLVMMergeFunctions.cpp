@@ -1266,6 +1266,21 @@ static Value *createCast(IRBuilder<> &Builder, Value *V, Type *DestTy) {
     return Builder.CreateBitCast(V, DestTy);
 }
 
+/// Return true if \p F performs a guaranteed tail call (a `musttail` call)
+/// anywhere in its body. Such a function is part of a guaranteed-tail-call
+/// chain, so replacing a peer with a plain-`tail` forwarding thunk would break
+/// the O(1)-stack contract; see writeThunk.
+static bool funcContainsMustTailCall(const Function *F) {
+  for (const BasicBlock &BB : *F) {
+    for (const Instruction &I : BB) {
+      if (const auto *CI = dyn_cast<CallInst>(&I))
+        if (CI->isMustTailCall())
+          return true;
+    }
+  }
+  return false;
+}
+
 /// Replace \p Thunk with a simple tail call to \p ToFunc. Also add parameters
 /// to the call to \p ToFunc, which are defined by the FuncIdx's value in
 /// \p Params.
@@ -1300,8 +1315,23 @@ void SwiftMergeFunctions::writeThunk(Function *ToFunc, Function *Thunk,
   bool isSwiftTailCall =
    ToFunc->getCallingConv() == CallingConv::SwiftTail &&
    Thunk->getCallingConv() == CallingConv::SwiftTail;
+  // If the merged function is part of a guaranteed-tail-call chain -- i.e. its
+  // body performs a `become` / `musttail` call, as an interpreter's threaded
+  // dispatch handlers do -- then the forwarding thunk must itself tail-call
+  // with the same guarantee. A plain `tail` call is only an optimization hint
+  // that the backend need not honor (in particular a swiftcc call carrying a
+  // `swifterror` argument is not tail-called by the AArch64 backend), so the
+  // thunk's frame would leak on every dispatch and an otherwise-O(1) loop would
+  // overflow the stack. The thunk is an exact forwarder of a structurally
+  // identical function, so `musttail` is valid as long as the thunk's and the
+  // callee's prototypes match exactly (LLVM requires matching prototypes for a
+  // musttail call, and the createCast calls above are then all no-ops).
+  bool preserveMustTail =
+   funcContainsMustTailCall(ToFunc) &&
+   Thunk->getFunctionType() == ToFunc->getFunctionType();
   CI->setTailCallKind(
-    isSwiftTailCall ? llvm::CallInst::TCK_MustTail : llvm::CallInst::TCK_Tail);
+    (isSwiftTailCall || preserveMustTail) ? llvm::CallInst::TCK_MustTail
+                                          : llvm::CallInst::TCK_Tail);
   CI->setCallingConv(ToFunc->getCallingConv());
   CI->setAttributes(ToFunc->getAttributes());
   if (Thunk->getReturnType()->isVoidTy()) {
