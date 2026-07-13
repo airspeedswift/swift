@@ -103,6 +103,25 @@ static bool isSpecializableRepresentation(SILFunctionTypeRepresentation Rep,
   llvm_unreachable("Unhandled SILFunctionTypeRepresentation in switch.");
 }
 
+/// Returns true if \p F performs a guaranteed tail call (a `become` statement,
+/// lowered to a `musttail` call). Such a function's parameter list is pinned by
+/// that call: LLVM requires a `musttail` caller's parameters to match the call's
+/// arguments exactly. Any signature change (dead-argument elimination, argument
+/// explosion, owned-to-guaranteed, …) would break that match and produce invalid
+/// IR ("cannot guarantee tail call due to mismatched parameter counts"), so such
+/// functions must be excluded from function-signature specialization.
+static bool functionContainsMustTailCall(SILFunction *F) {
+  for (auto &BB : *F) {
+    for (auto &I : BB) {
+      if (auto apply = ApplySite::isa(&I)) {
+        if (apply.isMustTailCall())
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
 /// Returns true if F is a function which the pass knows how to specialize
 /// function signatures for.
 static bool canSpecializeFunction(SILFunction *F,
@@ -111,6 +130,13 @@ static bool canSpecializeFunction(SILFunction *F,
   // Do not specialize the signature of SILFunctions that are external
   // declarations since there is no body to optimize.
   if (F->isExternalDeclaration())
+    return false;
+
+  // Do not touch the signature of a function that performs a guaranteed tail
+  // call (`become`): its parameter list must stay identical to the arguments of
+  // that `musttail` call, so dropping/exploding/reordering parameters would emit
+  // invalid IR. See functionContainsMustTailCall.
+  if (functionContainsMustTailCall(F))
     return false;
 
   // For now ignore functions with indirect results.
