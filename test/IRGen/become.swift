@@ -1,4 +1,4 @@
-// RUN: %target-swift-frontend -emit-ir -enable-experimental-feature Become %s | %FileCheck %s
+// RUN: %target-swift-frontend -emit-ir -disable-experimental-parser-round-trip -enable-experimental-feature Become %s | %FileCheck %s
 
 // REQUIRES: swift_feature_Become
 

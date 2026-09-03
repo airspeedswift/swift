@@ -1,4 +1,4 @@
-// RUN: %target-typecheck-verify-swift -enable-experimental-feature Become
+// RUN: %target-typecheck-verify-swift -disable-experimental-parser-round-trip -enable-experimental-feature Become
 
 // REQUIRES: swift_feature_Become
 

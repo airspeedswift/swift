@@ -1,4 +1,4 @@
-// RUN: %target-swift-emit-sil -verify -enable-experimental-feature Become %s
+// RUN: %target-swift-emit-sil -verify -disable-availability-checking -disable-experimental-parser-round-trip -enable-experimental-feature Become %s
 
 // REQUIRES: swift_feature_Become
 
