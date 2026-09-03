@@ -932,6 +932,19 @@ void SILGenFunction::emitReturnExpr(SILLocation branchLoc,
   Cleanups.emitBranchAndCleanups(ReturnDest, branchLoc, directResults);
 }
 
+/// Whether an instruction between a guaranteed tail call and the return lowers
+/// to no machine code: a scope-ender, a debug/lifetime marker, or a pure
+/// effect-free value instruction. 'end_formal_scope' is a raw-SIL marker that
+/// is removed before IRGen, so it counts too.
+static bool becomeInstLowersToNothing(SILInstruction &inst) {
+  if (isa<EndAccessInst>(inst) || isa<EndBorrowInst>(inst) ||
+      isa<EndFormalScopeInst>(inst) || isa<DebugValueInst>(inst) ||
+      isa<ExtendLifetimeInst>(inst))
+    return true;
+  return !inst.mayHaveSideEffects() && !inst.mayReadFromMemory() &&
+         !inst.mayWriteToMemory();
+}
+
 /// A 'dealloc_stack' in a try_apply successor is "dead across the call" if the
 /// storage it frees is not used at or after the call: every non-dealloc use of
 /// the storage precedes the try_apply. (Sibling 'dealloc_stack's of the same
@@ -966,16 +979,12 @@ static bool becomeSuccessorIsCleanTail(
   for (auto &inst : *succ) {
     if (isa<TermInst>(inst))
       break;
-    if (isa<EndAccessInst>(inst) || isa<EndBorrowInst>(inst) ||
-        isa<DebugValueInst>(inst) || isa<ExtendLifetimeInst>(inst))
-      continue;
     if (auto *ds = dyn_cast<DeallocStackInst>(&inst)) {
       if (becomeDeallocIsDeadAcrossCall(ds, beforeApply))
         continue;
       return false;
     }
-    if (!inst.mayHaveSideEffects() && !inst.mayReadFromMemory() &&
-        !inst.mayWriteToMemory())
+    if (becomeInstLowersToNothing(inst))
       continue;
     return false;
   }
@@ -1239,16 +1248,7 @@ void SILGenFunction::emitBecomeStmt(SILLocation loc, BecomeStmt *S) {
     // Now classify whatever remains after the apply.
     cleanTail = true;
     for (auto it = std::next(tailApply->getIterator()); it != bb->end(); ++it) {
-      SILInstruction &inst = *it;
-      // Scope-enders and debug markers lower to nothing between the call and the
-      // return.
-      if (isa<EndAccessInst>(inst) || isa<EndBorrowInst>(inst) ||
-          isa<DebugValueInst>(inst))
-        continue;
-      // Pure, effect-free value instructions (e.g. an unused empty 'tuple ()')
-      // also lower to nothing.
-      if (!inst.mayHaveSideEffects() && !inst.mayReadFromMemory() &&
-          !inst.mayWriteToMemory())
+      if (becomeInstLowersToNothing(*it))
         continue;
       cleanTail = false;
       break;
