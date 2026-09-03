@@ -429,6 +429,12 @@ public:
   // value which would be returned directly cannot fit into registers.
   Address IndirectReturn;
 
+  // The musttail call emitted for a 'become' in the block currently being
+  // emitted, if any. LLVM requires such a call to be immediately followed by a
+  // 'ret' of its result, so the block's terminator forwards it instead of
+  // branching to the function's shared epilog. Reset at each block.
+  llvm::CallBase *PendingMustTailCall = nullptr;
+
   // A cached dominance analysis.
   std::unique_ptr<DominanceInfo> Dominance;
 
@@ -2908,6 +2914,8 @@ void IRGenSILFunction::visitSILBasicBlock(SILBasicBlock *BB) {
   llvm::BasicBlock *llBB = getLoweredBB(BB).bb;
   Builder.SetInsertPoint(llBB);
 
+  PendingMustTailCall = nullptr;
+
   bool InEntryBlock = BB->pred_empty();
 
   // Set this block as the dominance point.  This implicitly communicates
@@ -4068,6 +4076,11 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
     } else {
       setLoweredExplosion(apply, result);
     }
+    // A guaranteed tail call must be immediately followed by a 'ret' of its
+    // result; the block's terminator emits that instead of a branch to the
+    // shared epilog.
+    if (apply->isMustTailCall())
+      PendingMustTailCall = emission->getLastEmittedCall();
     emission->end();
 
   // For begin_apply, we have to destructure the call.
@@ -5538,6 +5551,19 @@ void IRGenSILFunction::visitDynamicMethodBranchInst(DynamicMethodBranchInst *i){
 }
 
 void IRGenSILFunction::visitBranchInst(swift::BranchInst *i) {
+  // A 'become' tail call branches to the function's shared epilog block in SIL,
+  // but LLVM requires the musttail call to be immediately followed by a 'ret'.
+  // Return its result here; the epilog is still emitted for its other
+  // predecessors.
+  if (auto *call = PendingMustTailCall) {
+    PendingMustTailCall = nullptr;
+    if (call->getType()->isVoidTy())
+      Builder.CreateRetVoid();
+    else
+      Builder.CreateRet(call);
+    return;
+  }
+
   LoweredBB &lbb = getLoweredBB(i->getDestBB());
   addIncomingSILArgumentsToPHINodes(*this, lbb, i->getArgs());
   Builder.CreateBr(lbb.bb);
