@@ -288,6 +288,29 @@ OptionalBridgedResultInfo SILFunctionType_getErrorResult(BridgedCanType funcTy) 
 
 }
 
+bool SILFunctionType_hasUninhabitedErrorResult(BridgedCanType funcTy,
+                                               BridgedFunction inFunction) {
+  auto *fnTy = funcTy.unbridged()->castTo<swift::SILFunctionType>();
+  auto errorResult = fnTy->getOptionalErrorResult();
+  if (!errorResult)
+    return false;
+
+  auto *f = inFunction.getFunction();
+  // Not `getInterfaceType()`: the error is uninhabited only once the pattern substitutions of a
+  // `@substituted` function type have been applied.
+  swift::CanType errorTy = errorResult->getReturnValueType(
+      f->getModule(), fnTy, f->getTypeExpansionContext());
+  if (!errorTy->isStructurallyUninhabited())
+    return false;
+
+  // A resilient enum from another module can gain cases in a future version of that module, so
+  // being case-less today doesn't mean it stays uninhabited.
+  auto silTy = swift::SILType::getPrimitiveObjectType(errorTy);
+  if (silTy.getEnumOrBoundGenericEnum())
+    return silTy.isEffectivelyExhaustiveEnumType(f);
+  return true;
+}
+
 BridgedParameterInfoArray SILFunctionType_getParameters(BridgedCanType funcTy) {
   return {funcTy.unbridged()->castTo<swift::SILFunctionType>()->getParameters()};
 }

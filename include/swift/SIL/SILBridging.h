@@ -253,6 +253,10 @@ BRIDGED_INLINE SwiftInt SILFunctionType_getNumPackResults(BridgedCanType);
 
 SWIFT_IMPORT_UNSAFE BRIDGED_INLINE OptionalBridgedResultInfo SILFunctionType_getErrorResult(BridgedCanType);
 
+/// True if the function type has an error result which can never hold a value, as seen from
+/// `inFunction` - i.e. it is uninhabited and known to stay that way across module boundaries.
+BRIDGED_INLINE bool SILFunctionType_hasUninhabitedErrorResult(BridgedCanType, BridgedFunction inFunction);
+
 SWIFT_IMPORT_UNSAFE BRIDGED_INLINE
 BridgedParameterInfoArray SILFunctionType_getParameters(BridgedCanType);
 

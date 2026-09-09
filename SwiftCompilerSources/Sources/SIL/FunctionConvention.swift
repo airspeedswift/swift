@@ -56,6 +56,13 @@ public struct FunctionConvention : CustomStringConvertible {
       hasLoweredAddresses: hasLoweredAddresses)
   }
 
+  /// True if there is an error result which can never hold a value, e.g. `Never`, so that the
+  /// function cannot actually throw. Enums which are resilient from `function`'s point of view
+  /// don't count, because they can gain cases in a future version of their module.
+  public func hasUninhabitedErrorResult(in function: Function) -> Bool {
+    SILFunctionType_hasUninhabitedErrorResult(functionType.bridged, function.bridged)
+  }
+
   /// Number of indirect results including the error.
   /// This avoids quadratic lazy iteration on indirectResults.count.
   public var indirectSILResultCount: Int {
