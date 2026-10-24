@@ -54,3 +54,22 @@ func escapeByClosure(_ g: Ref) { // expected-note 2 {{it depends on the lifetime
   let f: () -> Int = { r.raw } // expected-note 3 {{this use causes the lifetime-dependent value to escape}}
   sink = f
 }
+
+// An optional ~Escapable argument (passed as an enum of a copy), defaulted to nil.
+struct Fn: ~Escapable {
+  let raw: Int
+  @_lifetime(immortal) init(_ r: Int) { raw = r }
+  @_lifetime(borrow self) @yield_once func call(this: Ref? = nil, _ args: Int...) throws yields (Ref) -> () {
+    yield Ref(raw &+ args.count)
+  }
+  @_lifetime(borrow self, copy this) @yield_once func callCopying(this: Ref? = nil) throws yields (Ref) -> () {
+    yield Ref(raw &+ (this?.raw ?? 0))
+  }
+}
+func optionalArgument(_ s: Ref, _ m: Fn) throws -> Int {
+  let r = try m.call(this: s, 1)
+  let t = try m.call(2, 3)
+  let u = try m.callCopying(this: s)
+  let v = try m.callCopying()
+  return r.raw + t.raw + u.raw + v.raw
+}

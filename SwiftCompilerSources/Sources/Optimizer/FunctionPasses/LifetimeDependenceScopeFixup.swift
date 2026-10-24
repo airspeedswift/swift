@@ -511,12 +511,31 @@ private struct ExtendableScope {
     // does not extend the dependence it inherits from its source, but it does not need to be sound: diagnostics check
     // every use of the extended copy, including its destroy, against that dependence. Extension is only attempted
     // when a dependent use is already out of scope, so this can only remove an error.
-    guard owner.type.isEscapable(in: owner.parentFunction) || owner is CopyValueInst,
+    // The same holds for an aggregate of such copies: an optional ~Escapable argument is passed as
+    // `enum $Optional<T>, #Optional.some, (copy_value %arg)`.
+    guard owner.type.isEscapable(in: owner.parentFunction) || isExtendableCopy(owner),
           VariableScopeInstruction(owner.definingInstruction) == nil,
           owner.uses.endingLifetime.allSatisfy({ $0.instruction is DestroyValueInst }) else {
       return nil
     }
     self.introducer = .owned(owner)
+  }
+}
+
+/// A copy of a value, or an enum, struct or tuple formed from such copies (and trivial values).
+private func isExtendableCopy(_ value: Value) -> Bool {
+  switch value {
+  case is CopyValueInst:
+    return true
+  case let e as EnumInst:
+    guard let payload = e.payload else { return true }
+    return payload.type.isTrivial(in: e.parentFunction) || isExtendableCopy(payload)
+  case let s as StructInst:
+    return s.operands.allSatisfy { $0.value.type.isTrivial(in: s.parentFunction) || isExtendableCopy($0.value) }
+  case let t as TupleInst:
+    return t.operands.allSatisfy { $0.value.type.isTrivial(in: t.parentFunction) || isExtendableCopy($0.value) }
+  default:
+    return false
   }
 }
 
