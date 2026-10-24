@@ -505,7 +505,13 @@ private struct ExtendableScope {
     self.scope = scope
     // TODO: allow extension of lifetime dependent values by implementing a ScopeExtensionWalker that extends
     // LifetimeDependenceUseDefWalker.
-    guard owner.type.isEscapable(in: owner.parentFunction),
+    //
+    // A copy is the exception. SILGen creates a copy for a ~Escapable argument of a coroutine call (a subscript
+    // index, or an argument of a yield-once function) and destroys it right after the end_apply. Extending the copy
+    // does not extend the dependence it inherits from its source, but it does not need to be sound: diagnostics check
+    // every use of the extended copy, including its destroy, against that dependence. Extension is only attempted
+    // when a dependent use is already out of scope, so this can only remove an error.
+    guard owner.type.isEscapable(in: owner.parentFunction) || owner is CopyValueInst,
           VariableScopeInstruction(owner.definingInstruction) == nil,
           owner.uses.endingLifetime.allSatisfy({ $0.instruction is DestroyValueInst }) else {
       return nil
