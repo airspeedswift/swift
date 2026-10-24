@@ -12468,7 +12468,12 @@ void FuncDecl::getYieldInterfaceTypes(
   auto &ctx = getASTContext();
   auto mutableThis = const_cast<FuncDecl *>(this);
   auto *yieldList = getYields();
-  ASSERT(yieldList && "coroutines should specify yield list");
+  // The yields clause can be missing after a parse error, e.g. '@yield_once'
+  // with 'yields' rejected because CoroutineFunctions is not enabled.
+  if (!yieldList) {
+    ASSERT(ctx.hadError() && "coroutines should specify yield list");
+    return;
+  }
   for (auto [idx, yield] : llvm::enumerate(*yieldList)) {
     auto type = ctx.evaluator(YieldsTypeRequest{mutableThis, unsigned(idx)},
                               [&ctx]() { return ErrorType::get(ctx); });
