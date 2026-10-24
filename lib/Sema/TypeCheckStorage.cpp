@@ -1053,8 +1053,11 @@ OpaqueReadOwnershipRequest::evaluate(Evaluator &evaluator,
     if (auto *getter = storage->getEffectfulGetAccessor()) {
       switch (kind) {
       case DiagKind::NoncopyableType:
-        getter->diagnose(diag::noncopyable_effectful_getter, getter);
-        break;
+        // A read coroutine cannot be 'async' or 'throws', so an opaque read of
+        // noncopyable storage with an effectful getter calls the getter and
+        // produces an owned value. That is what 'get' means. It is ABI-safe:
+        // such a getter was rejected before, so no opaque read of it exists.
+        return OpaqueReadOwnership::Owned;
       case DiagKind::BorrowedAttr:
         getter->diagnose(diag::borrowed_with_effect, getter);
         break;
