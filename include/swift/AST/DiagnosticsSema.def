@@ -3696,6 +3696,9 @@ ERROR(protocol_witness_borrow_mutate_conflict, none,
       (StringRef))
 ERROR(protocol_witness_borrow_mutate_unsupported, none,
       "borrow/mutate protocol requirements can only be witnessed in a struct", ())
+NOTE(protocol_witness_noncopyable_effectful_get_conflict, none,
+     "candidate only lends its non-'Copyable' value, but the protocol requires "
+     "an 'async' or 'throws' getter, which returns an owned value", ())
 
 NOTE(protocol_witness_rethrows_conflict,none,
      "candidate is not 'rethrows', but protocol requires it", ())
@@ -4067,6 +4070,10 @@ ERROR(yielding_accessor_effects_mismatch,none,
 ERROR(override_mutable_with_readonly_property,none,
       "cannot override mutable property with read-only property %0",
       (Identifier))
+ERROR(override_noncopyable_effectful_get_without_getter,none,
+      "%kind0 must be overridden with a getter, because the overridden "
+      "'async' or 'throws' getter returns an owned non-'Copyable' value",
+      (const ValueDecl *))
 ERROR(override_argument_name_mismatch,none,
       "argument labels for %select{method|initializer}0 %1 do not match those "
       "of overridden %select{method|initializer}0 %2",
@@ -9049,9 +9056,6 @@ NOTE(noncopyable_generics_implicit_conformance_req, none,
 NOTE(noncopyable_generics_implicit_composition, none,
      "'%noformat0 & %noformat1' is implicit here",
      (Type, Type))
-ERROR(noncopyable_effectful_getter,none,
-      "%kindonly0 of non-'Copyable' type cannot be 'async' or 'throws'",
-      (const AccessorDecl *))
 ERROR(noncopyable_enums_do_not_support_indirect,none,
       "non-'Copyable' enum %0 cannot be marked indirect or have indirect cases yet", (Identifier))
 ERROR(noncopyable_cast,none,

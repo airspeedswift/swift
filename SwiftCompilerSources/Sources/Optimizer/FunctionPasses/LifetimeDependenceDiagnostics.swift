@@ -168,12 +168,45 @@ private class DiagnoseDependence {
   /// Check that this use is inside the dependence scope.
   func checkInScope(operand: Operand) -> WalkResult {
     if let range, !range.inclusiveRangeContains(operand.instruction) {
+      if isRedundantDeadEndLifetimeEnd(operand) {
+        log("  ignoring dead-end lifetime end: \(operand.instruction)")
+        return .continueWalk
+      }
       log("  out-of-range error: \(operand.instruction)")
       reportError(escapingValue: operand.value, user: operand.instruction, diagID: .lifetime_outside_scope_use)
       return .abortWalk
     }
     log("  contains: \(operand.instruction)")
     return .continueWalk
+  }
+
+  /// An end_borrow or destroy_value in a dead-end block is redundant (docs/SIL/Ownership.md, "Dead End Blocks"): it
+  /// only completes a lifetime on a path that terminates the program. It is not a use of the dependent value, just like
+  /// destroy_value [dead_end], which LifetimeDependenceDefUseWalker already ignores.
+  ///
+  /// Such lifetime ends can appear after the end of the dependence scope when a pass between scope fixup and
+  /// diagnostics rewrites a destroy_value [dead_end]. Scope fixup ignores dead-end destroys, so it ends a scope extended
+  /// into a dead-end block at the start of that block. ClosureLifetimeFixup then replaces a closure's
+  /// destroy_value [dead_end] with an end_borrow and destroy_value of each captured argument. This happens when a
+  /// non-escaping closure is passed to a 'rethrows' or 'throws(E)' function that does not throw: the error successor
+  /// of the try_apply is a dead end.
+  ///
+  /// A destroy of a move-only value is still diagnosed because it may run a deinit.
+  ///
+  /// Only called on the error path, so the dead-end analysis is not computed for valid code.
+  private func isRedundantDeadEndLifetimeEnd(_ operand: Operand) -> Bool {
+    let inst = operand.instruction
+    switch inst {
+    case is EndBorrowInst:
+      break
+    case is DestroyValueInst:
+      if operand.value.type.isMoveOnly {
+        return false
+      }
+    default:
+      return false
+    }
+    return context.deadEndBlocks.isDeadEnd(inst.parentBlock)
   }
 
   func reportEscaping(operand: Operand) {

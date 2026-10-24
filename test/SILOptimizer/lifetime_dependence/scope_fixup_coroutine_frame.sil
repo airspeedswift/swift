@@ -1,0 +1,122 @@
+// RUN: %target-sil-opt \
+// RUN:   -lifetime-dependence-scope-fixup \
+// RUN:   -sil-verify-all \
+// RUN:   -enable-experimental-feature Lifetimes \
+// RUN:   %s | %FileCheck %s
+
+// REQUIRES: swift_feature_Lifetimes
+
+// LifetimeDependenceScopeFixup extends a coroutine scope over its dependent
+// uses and moves the deallocation of a callee-allocated (yield_once_2) frame
+// with the coroutine's end. SILGen does not always deallocate the frame in the
+// block of the end_apply: each original dealloc_stack is paired with the
+// scope ends that precede it on every path.
+
+sil_stage raw
+
+import Builtin
+import Swift
+
+class Holder {}
+
+struct NE : ~Escapable {
+  var p: UnsafeRawPointer
+}
+
+struct E : Error {}
+
+sil @getNE : $@yield_once_2 @convention(thin) (@guaranteed Holder) -> @lifetime(borrow 0) @yields @guaranteed NE
+sil @useNE : $@convention(thin) (@guaranteed NE) -> ()
+sil @useNEThrows : $@convention(thin) (@guaranteed NE) -> @error any Error
+
+// The end_apply precedes a try_apply that uses the dependent value, and the
+// frame is deallocated in both successors. Extend the scope into each
+// successor with exactly one dealloc_stack there.
+//
+// CHECK-LABEL: sil [ossa] @acrossTryApply : $@convention(thin) (@guaranteed Holder) -> @error any Error {
+// CHECK:         ({{%.*}}, [[TOKEN:%.*]], [[FRAME:%.*]]) = begin_apply
+// CHECK-NOT:     end_apply
+// CHECK-NOT:     dealloc_stack
+// CHECK:         try_apply
+// CHECK:       bb1(
+// CHECK:         end_apply [[TOKEN]]
+// CHECK:         dealloc_stack [[FRAME]]
+// CHECK-NOT:     dealloc_stack
+// CHECK:         return
+// CHECK:       bb2(
+// CHECK:         end_apply [[TOKEN]]
+// CHECK:         dealloc_stack [[FRAME]]
+// CHECK-NOT:     dealloc_stack
+// CHECK:         throw
+// CHECK-LABEL: } // end sil function 'acrossTryApply'
+sil [ossa] @acrossTryApply : $@convention(thin) (@guaranteed Holder) -> @error any Error {
+bb0(%0 : @guaranteed $Holder):
+  %1 = function_ref @getNE : $@yield_once_2 @convention(thin) (@guaranteed Holder) -> @lifetime(borrow 0) @yields @guaranteed NE
+  (%2, %3, %4) = begin_apply %1(%0) : $@yield_once_2 @convention(thin) (@guaranteed Holder) -> @lifetime(borrow 0) @yields @guaranteed NE
+  %5 = mark_dependence [unresolved] %2 on %3
+  %6 = copy_value %5
+  %7 = end_apply %3 as $()
+  %8 = function_ref @useNEThrows : $@convention(thin) (@guaranteed NE) -> @error any Error
+  try_apply %8(%6) : $@convention(thin) (@guaranteed NE) -> @error any Error, normal bb1, error bb2
+
+bb1(%10 : $()):
+  destroy_value %6
+  dealloc_stack %4
+  %13 = tuple ()
+  return %13
+
+bb2(%15 : @owned $any Error):
+  destroy_value %6
+  dealloc_stack %4
+  throw %15
+}
+
+// The frame is deallocated in a merge block, after one end that is reused (it
+// already follows the last use) and one that moves. Each path deallocates the
+// frame exactly once: right after the reused end, and with the new end.
+//
+// CHECK-LABEL: sil [ossa] @mixedReuse : $@convention(thin) (@guaranteed Holder, Builtin.Int1) -> () {
+// CHECK:         ({{%.*}}, [[TOKEN:%.*]], [[FRAME:%.*]]) = begin_apply
+// CHECK:       bb1:
+// CHECK:         apply
+// CHECK:         destroy_value
+// CHECK:         end_apply [[TOKEN]]
+// CHECK-NEXT:    dealloc_stack [[FRAME]]
+// CHECK-NEXT:    br bb3
+// CHECK:       bb2:
+// CHECK-NOT:     end_apply
+// CHECK:         apply
+// CHECK:         destroy_value
+// CHECK:         end_apply [[TOKEN]]
+// CHECK-NEXT:    dealloc_stack [[FRAME]]
+// CHECK-NEXT:    br bb3
+// CHECK:       bb3:
+// CHECK-NOT:     dealloc_stack
+// CHECK:         return
+// CHECK-LABEL: } // end sil function 'mixedReuse'
+sil [ossa] @mixedReuse : $@convention(thin) (@guaranteed Holder, Builtin.Int1) -> () {
+bb0(%0 : @guaranteed $Holder, %1 : $Builtin.Int1):
+  %2 = function_ref @getNE : $@yield_once_2 @convention(thin) (@guaranteed Holder) -> @lifetime(borrow 0) @yields @guaranteed NE
+  (%3, %4, %5) = begin_apply %2(%0) : $@yield_once_2 @convention(thin) (@guaranteed Holder) -> @lifetime(borrow 0) @yields @guaranteed NE
+  %6 = mark_dependence [unresolved] %3 on %4
+  %7 = copy_value %6
+  %8 = function_ref @useNE : $@convention(thin) (@guaranteed NE) -> ()
+  cond_br %1, bb1, bb2
+
+bb1:
+  %10 = apply %8(%7) : $@convention(thin) (@guaranteed NE) -> ()
+  destroy_value %7
+  %12 = end_apply %4 as $()
+  br bb3
+
+bb2:
+  %14 = end_apply %4 as $()
+  %15 = apply %8(%7) : $@convention(thin) (@guaranteed NE) -> ()
+  destroy_value %7
+  br bb3
+
+bb3:
+  dealloc_stack %5
+  %19 = tuple ()
+  return %19
+}
