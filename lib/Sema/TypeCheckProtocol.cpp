@@ -617,6 +617,21 @@ checkWitnessAccessor(AbstractStorageDecl *witness,
       return RequirementMatch(witness, MatchKind::BorrowMutateConflict);
     }
   }
+
+  // An 'async' or 'throws' getter requirement of noncopyable type is read by
+  // calling the getter, which returns an owned value (see
+  // OpaqueReadOwnershipRequest). A witness that only lends its noncopyable
+  // value, such as a stored property or a read coroutine, cannot produce one;
+  // only a getter can.
+  if (requirement->getEffectfulGetAccessor() &&
+      requirement->getOpaqueReadOwnership() == OpaqueReadOwnership::Owned &&
+      witness->getInnermostDeclContext()
+          ->mapTypeIntoEnvironment(witness->getValueInterfaceType())
+          ->isNoncopyable() &&
+      witness->getReadImpl() != ReadImplKind::Get) {
+    return RequirementMatch(witness,
+                            MatchKind::NoncopyableEffectfulGetConflict);
+  }
   return std::nullopt;
 }
 
@@ -3575,6 +3590,10 @@ diagnoseMatch(ModuleDecl *module, NormalProtocolConformance *conformance,
     diags.diagnose(match.Witness, diag::protocol_witness_lifetime_conflict);
     break;
   }
+  case MatchKind::NoncopyableEffectfulGetConflict:
+    diags.diagnose(match.Witness,
+                   diag::protocol_witness_noncopyable_effectful_get_conflict);
+    break;
   }
 }
 

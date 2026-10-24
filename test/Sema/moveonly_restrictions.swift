@@ -235,16 +235,16 @@ enum StrengthLevel: Int, ~Copyable {
 
 public class Holder {
     var one: MoveOnlyStruct {
-        get async {  } // expected-error {{getter of non-'Copyable' type cannot be 'async' or 'throws'}}
+        get async {  }
     }
     var two: MoveOnlyKlass {
-        get throws {  } // expected-error {{getter of non-'Copyable' type cannot be 'async' or 'throws'}}
+        get throws {  }
     }
 }
 
 struct StructHolder {
     var three: EMoveOnly {
-        get async throws {  } // expected-error {{getter of non-'Copyable' type cannot be 'async' or 'throws'}}
+        get async throws {  }
     }
 }
 

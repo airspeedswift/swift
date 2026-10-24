@@ -2066,6 +2066,23 @@ static bool checkSingleOverride(ValueDecl *override, ValueDecl *base) {
       }
     }
 
+    // An 'async' or 'throws' getter of noncopyable type is read through the
+    // getter's vtable entry, which returns an owned value (see
+    // OpaqueReadOwnershipRequest). An override that only lends its value, such
+    // as a read coroutine, has no getter to put in that entry.
+    if (baseASD->getEffectfulGetAccessor() &&
+        baseASD->getOpaqueReadOwnership() == OpaqueReadOwnership::Owned &&
+        overrideASD->getInnermostDeclContext()
+            ->mapTypeIntoEnvironment(overrideASD->getValueInterfaceType())
+            ->isNoncopyable() &&
+        overrideASD->getReadImpl() != ReadImplKind::Get) {
+      diags.diagnose(overrideASD,
+                     diag::override_noncopyable_effectful_get_without_getter,
+                     overrideASD);
+      diags.diagnose(baseASD, diag::property_override_here);
+      return true;
+    }
+
     // Make sure an effectful storage decl is only overridden by a storage
     // decl with the same or fewer effect kinds.
     if (!overrideASD->isLessEffectfulThan(baseASD, EffectKind::Async)) {

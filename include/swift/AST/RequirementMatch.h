@@ -114,6 +114,11 @@ enum class MatchKind : uint8_t {
   /// requirement.
   BorrowMutateConflict,
 
+  /// The witness did not match because the requirement is an 'async' or
+  /// 'throws' getter of noncopyable type, which produces an owned value, and
+  /// the witness can only lend one (a stored property or a read coroutine).
+  NoncopyableEffectfulGetConflict,
+
   /// The witness did not match because it has lifetime dependencies that do not
   /// match those of the requirement.
   LifetimeConflict,
@@ -429,6 +434,7 @@ struct RequirementMatch {
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:
     case MatchKind::BorrowMutateConflict:
+    case MatchKind::NoncopyableEffectfulGetConflict:
     case MatchKind::LifetimeConflict:
       return false;
     }
@@ -469,6 +475,7 @@ struct RequirementMatch {
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:
     case MatchKind::BorrowMutateConflict:
+    case MatchKind::NoncopyableEffectfulGetConflict:
     case MatchKind::LifetimeConflict:
       return false;
     }
@@ -508,6 +515,7 @@ struct RequirementMatch {
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:
     case MatchKind::BorrowMutateConflict:
+    case MatchKind::NoncopyableEffectfulGetConflict:
     case MatchKind::LifetimeConflict:
       return false;
     }
