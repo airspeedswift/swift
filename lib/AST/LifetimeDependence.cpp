@@ -492,10 +492,10 @@ public:
         fn->getYieldInterfaceTypes(yields);
 
         // TODO: Extend tracking to coroutines with multiple yields and / or
-        // yields and results.
-        ASSERT(/*resultType->isEqual(fn->getASTContext().TheEmptyTupleType) &&*/
-               yields.size() == 1);
-        resultType = yields.front().getType();
+        // yields and results. Until then, other shapes are diagnosed as
+        // unsupported by the declaration checker; keep the normal result here.
+        if (yields.size() == 1)
+          resultType = yields.front().getType();
       }
     } else {
       auto ctor = cast<ConstructorDecl>(functionDC);

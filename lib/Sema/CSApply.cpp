@@ -8708,7 +8708,30 @@ Expr *ExprRewriter::finishApply(ApplyExpr *apply, Type openedType,
       return nullptr;
 
     apply->setArgs(args);
-    cs.setType(apply, fnType->getResult());
+    // A call to a yield-once coroutine may produce its yielded value.
+    Type callValue = fnType->getCoroutineCallValueType();
+    if (fnType->isCoroutine()) {
+      // PROTOTYPE (CoroutineFunctions): only calls to coroutines with one
+      // borrow yield and a '()' result are lowered.
+      std::optional<unsigned> unsupported;
+      if (fnType->getYields().size() != 1)
+        unsupported = 0;
+      else if (!fnType->getResult()->isVoid())
+        unsupported = 1;
+      else if (fnType->isAsync())
+        unsupported = 2;
+      else if (fnType->getYields()[0].isInOut())
+        unsupported = 3;
+      if (unsupported)
+        cs.getASTContext().Diags.diagnose(
+                           apply->getLoc(),
+                           diag::yield_once_function_call_unsupported,
+                           *unsupported);
+    }
+    if (callValue)
+      cs.setType(apply, callValue);
+    else
+      cs.setType(apply, fnType->getResult());
 
     // If this is a call to a distributed method thunk,
     // let's mark the call as implicitly throwing.

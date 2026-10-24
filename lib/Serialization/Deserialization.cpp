@@ -4720,10 +4720,8 @@ public:
       SmallVector<AnyFunctionType::Yield, 1> yields;
       SET_OR_RETURN_ERROR(yields, MF.readYieldList());
 
-      // Sanity check: non-coroutines should have empty yields and
-      // coroutines shoud have non-empty yields.
-      if (fn->isCoroutine() != !yields.empty())
-        return MF.diagnoseFatal();
+      // The @yield_once attribute is deserialized later, so isCoroutine()
+      // cannot be checked against the yields here.
 
       if (yields.size())
         fn->setYields(YieldList::create(ctx, yields));

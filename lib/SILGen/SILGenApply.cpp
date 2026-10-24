@@ -5578,6 +5578,7 @@ private:
   RValue applyEnumElementConstructor(SGFContext C);
 
   RValue applyNormalCall(SGFContext C);
+  RValue applyCoroutineFunctionCall(SGFContext C);
 
   RValue applyFirstLevelCallee(SGFContext C);
 };
@@ -5853,7 +5854,56 @@ RValue CallEmission::applyFirstLevelCallee(SGFContext C) {
     return applyEnumElementConstructor(C);
   }
 
+  // PROTOTYPE (CoroutineFunctions): a call to a yield-once function evaluates
+  // to its yielded value (see AnyFunctionType::getCoroutineCallValueType).
+  if (callee.getTypeInfo(SGF).substFnType->isCoroutine())
+    return applyCoroutineFunctionCall(C);
+
   return applyNormalCall(C);
+}
+
+RValue CallEmission::applyCoroutineFunctionCall(SGFContext C) {
+  // Like a 'yielding borrow' access: begin the coroutine and leave its
+  // end_apply cleanup in the enclosing scope, so the coroutine ends with the
+  // full expression. Lifetime dependence scope fixup extends the coroutine over
+  // the uses of a dependent yielded value.
+  SILLocation loc = callSite->Loc;
+  setCanUnwind(false);
+  SmallVector<ManagedValue, 1> yields;
+  CleanupHandle endApply = applyCoroutine(yields);
+  ASSERT(yields.size() == 1 && "a coroutine call produces a single yield");
+
+  CanType formalFnType = callee.getSubstFormalType();
+  if (selfArg.has_value() && callSite.has_value())
+    formalFnType = cast<AnyFunctionType>(formalFnType).getResult();
+  auto fnTy = cast<AnyFunctionType>(formalFnType);
+  ASSERT(fnTy->getYields().size() == 1);
+  CanType yieldType = CanType(fnTy->getYields()[0].getType());
+
+  // Copy the yielded value out of the coroutine before it ends. An address
+  // yield (e.g. of a generic type) must really be copied: ManagedValue::copy
+  // of a trivial address returns the address itself.
+  ManagedValue yield = yields[0];
+  if (yield.getType().isAddress()) {
+    auto &tl = SGF.getTypeLowering(yield.getType());
+    if (tl.isLoadable()) {
+      yield = SGF.emitManagedLoadCopy(loc, yield.getValue(), tl);
+    } else {
+      SILValue tmp = SGF.emitTemporaryAllocation(loc, yield.getType().getObjectType());
+      SGF.B.createCopyAddr(loc, yield.getValue(), tmp, IsNotTake, IsInitialization);
+      yield = SGF.emitManagedBufferWithCleanup(tmp);
+    }
+  } else if (!yield.hasCleanup()) {
+    yield = yield.copy(SGF, loc);
+  }
+
+  // End the coroutine now, inside the call and before its arguments' scopes
+  // end, exactly as an rvalue read through a 'yielding borrow' accessor does.
+  // The arguments must outlive the coroutine. Lifetime dependence scope fixup
+  // extends the end_apply (and the arguments' scopes) over the uses of a
+  // yielded value that depends on the coroutine.
+  SGF.Cleanups.popAndEmitCleanup(endApply, CleanupLocation(loc), NotForUnwind);
+  return RValue(SGF, loc, yieldType, yield);
 }
 
 RValue CallEmission::applyNormalCall(SGFContext C) {

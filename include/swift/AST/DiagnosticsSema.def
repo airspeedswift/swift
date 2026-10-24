@@ -4064,6 +4064,10 @@ ERROR(accessor_with_throwing_yielding_accessor,none,
 ERROR(yielding_accessor_typed_throws_unsupported,none,
       "%0 cannot have a typed 'throws' clause yet; use 'throws'",
       (StringRef))
+ERROR(yield_once_function_call_unsupported,none,
+      "calls to yield-once functions %select{with other than exactly one yield|"
+      "with a result other than '()'|that are 'async'|with an 'inout' yield}0 "
+      "are not supported yet", (unsigned))
 ERROR(yielding_accessor_effects_mismatch,none,
       "%0 must have the same 'throws' clause as %1",
       (StringRef, StringRef))

@@ -14055,6 +14055,9 @@ ConstraintSystem::SolutionKind ConstraintSystem::simplifyApplicableFnConstraint(
 
     // Erase all of the opened existentials.
     Type result2 = func2->getResult();
+    // A call to a yield-once coroutine may produce its yielded value.
+    if (Type callValue = func2->getCoroutineCallValueType())
+      result2 = callValue;
     if (result2->hasTypeVariable() && !openedExistentials.empty()) {
       for (const auto &opened : openedExistentials) {
         auto originalTy = result2;

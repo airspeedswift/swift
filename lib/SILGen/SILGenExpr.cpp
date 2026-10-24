@@ -1060,6 +1060,16 @@ emitRValueForDecl(SILLocation loc, ConcreteDeclRef declRef, Type ncRefType,
 
   assert(!isa<TypeDecl>(decl));
 
+  // PROTOTYPE (CoroutineFunctions): only direct calls to yield-once functions
+  // are lowered; a reference as a function value would need coroutine
+  // reabstraction thunks.
+  if (auto *fn = dyn_cast<FuncDecl>(decl)) {
+    if (fn->isCoroutine() && !isa<AccessorDecl>(fn)) {
+      SGM.diagnose(loc, diag::yield_once_function_value_unsupported);
+      return emitUndefRValue(loc, refType);
+    }
+  }
+
   // If the referenced decl isn't a VarDecl, it should be a constant of some
   // sort.
   SILDeclRef silDeclRef(decl);

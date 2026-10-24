@@ -383,7 +383,12 @@ class YieldOnceCheck : public SILFunctionTransform {
           break;
         thrown = incoming.front();
       }
-      diagnose(astCtx, loc, diag::throw_after_yield);
+      bool isFunction = false;
+      if (auto *decl = fun.getDeclContext()
+                           ? fun.getDeclContext()->getAsDecl()
+                           : nullptr)
+        isFunction = !isa<AccessorDecl>(decl);
+      diagnose(astCtx, loc, diag::throw_after_yield, isFunction);
       if (auto *yield = error.inState.getYieldInstruction())
         diagnose(astCtx, yield->getLoc().getSourceLoc(), diag::previous_yield);
       return;

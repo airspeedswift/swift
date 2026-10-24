@@ -943,6 +943,18 @@ bool TypeBase::hasTypeRepr() const {
   });
 }
 
+Type AnyFunctionType::getCoroutineCallValueType() const {
+  if (!isCoroutine())
+    return Type();
+  auto yields = getYields();
+  if (yields.size() != 1 || !getResult()->isVoid())
+    return Type();
+  // TODO: an 'inout' yield should produce an lvalue, like 'yielding mutate'.
+  // Calls to such coroutines are diagnosed as unsupported for now; type them
+  // as the yielded value so the solver can get there.
+  return yields[0].getType();
+}
+
 bool TypeBase::isVoid() {
   if (auto TT = getAs<TupleType>())
     return TT->getNumElements() == 0;

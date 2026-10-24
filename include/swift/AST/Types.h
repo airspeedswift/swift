@@ -4061,6 +4061,17 @@ public:
 
   bool isCoroutine() const { return hasExtInfo() && getExtInfo().isCoroutine(); }
 
+  /// PROTOTYPE (CoroutineFunctions): the value of a call to a yield-once
+  /// coroutine of this type, if calls produce their yielded value. This is the
+  /// single place that decides call semantics: a coroutine whose normal result
+  /// is '()' and that has exactly one yield evaluates to that yield, and stays
+  /// suspended while the value is in use, like an access through a yielding
+  /// accessor. (An 'inout' yield should produce an lvalue; calls to such
+  /// coroutines are diagnosed as unsupported for now.)
+  /// Returns a null type for every other function type, whose calls produce
+  /// the normal result.
+  Type getCoroutineCallValueType() const;
+
   bool hasSendingResult() const { return getExtInfo().hasSendingResult(); }
 
   bool hasEffect(EffectKind kind) const;

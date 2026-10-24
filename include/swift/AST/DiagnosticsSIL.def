@@ -785,9 +785,13 @@ ERROR(multiple_yields, none, "accessor must not yield more than once", ())
 
 NOTE(previous_yield, none, "previous yield was here", ())
 
+ERROR(yield_once_function_value_unsupported, none,
+      "using a yield-once function as a value is not supported yet; call it "
+      "directly", ())
+
 ERROR(throw_after_yield, none,
-      "accessor must not throw after it yields; errors must be thrown before "
-      "the yield or handled", ())
+      "%select{accessor|function}0 must not throw after it yields; errors must "
+      "be thrown before the yield or handled", (bool))
 
 ERROR(possible_return_before_yield, none,
       "accessor must yield on all paths before returning", ())
