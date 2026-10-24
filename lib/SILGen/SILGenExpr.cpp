@@ -8020,6 +8020,32 @@ void SILGenFunction::emitIgnoredExpr(Expr *E) {
     return;
   }
 
+  // A discarded optional chain, `try x?.f()`: evaluate the chain for its side
+  // effects, ignoring its value inside the non-nil branch, so that the value
+  // does not flow to the merge point. That matters when the value cannot
+  // outlive the chain, e.g. the yield of a yield-once function call, whose
+  // coroutine ends in the non-nil branch.
+  if (auto *TE = dyn_cast<TryExpr>(E))
+    if (isa<OptionalEvaluationExpr>(TE->getSubExpr()->getSemanticsProvidingExpr()))
+      return emitIgnoredExpr(TE->getSubExpr());
+  if (auto *OEE = dyn_cast<OptionalEvaluationExpr>(E)) {
+    auto &ctx = getASTContext();
+    auto voidOptTy = OptionalType::get(ctx.TheEmptyTupleType);
+    SmallVector<ManagedValue, 1> results;
+    emitOptionalEvaluation(
+        OEE, voidOptTy, results, SGFContext(),
+        [&](SmallVectorImpl<ManagedValue> &results, SGFContext) {
+          {
+            FormalEvaluationScope evalScope(*this);
+            emitIgnoredExpr(OEE->getSubExpr());
+          }
+          SILValue some = B.createOptionalSome(
+              OEE, emitEmptyTuple(OEE), getLoweredType(voidOptTy));
+          results.push_back(ManagedValue::forObjectRValueWithoutOwnership(some));
+        });
+    return;
+  }
+
   // Otherwise, emit the result (to get any side effects), but produce it at +0
   // if that allows simplification.
   RValue rv = emitRValue(E, SGFContext::AllowImmediatePlusZero);

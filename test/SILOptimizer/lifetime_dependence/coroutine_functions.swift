@@ -73,3 +73,24 @@ func optionalArgument(_ s: Ref, _ m: Fn) throws -> Int {
   let v = try m.callCopying()
   return r.raw + t.raw + u.raw + v.raw
 }
+
+// A discarded optional chain onto a yield-once call: the yield does not flow
+// to the chain's merge point.
+struct ChainRef: ~Escapable {
+  let raw: Int
+  @_lifetime(immortal) init(_ r: Int) { raw = r }
+  var function: ChainFn? { @_lifetime(copy self) get { raw > 0 ? ChainFn(self) : nil } }
+}
+struct ChainFn: ~Escapable {
+  let ref: ChainRef
+  @_lifetime(copy r) init(_ r: ChainRef) { ref = r }
+  @discardableResult @_lifetime(borrow self)
+  @yield_once func call(_ x: Int) throws yields (ChainRef) -> () { yield ChainRef(ref.raw &+ x) }
+}
+func discardedOptionalChain(_ r: ChainRef) throws {
+  try r.function?.call(1)
+  _ = try r.function?.call(2)
+  try r.function?.call(3).function?.call(4)
+  let used = try r.function?.call(5).raw
+  _ = used
+}
