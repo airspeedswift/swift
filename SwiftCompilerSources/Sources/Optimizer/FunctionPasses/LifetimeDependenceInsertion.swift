@@ -258,8 +258,21 @@ private func insertResultDependencies(for apply: LifetimeDependentApply, _ conte
   // Find the dependence base for each source.
   sources.initializeBases(context)
 
+  // The yields of a throwing coroutine are only valid in the normal successor of its begin_apply_error_br.
+  var errorBranch: BeginApplyErrorBrInst? = nil
+  if let beginApply = apply.applySite as? BeginApplyInst {
+    errorBranch = beginApply.parentBlock.terminator as? BeginApplyErrorBrInst
+    if let eb = errorBranch, eb.token != beginApply.token {
+      errorBranch = nil
+    }
+  }
   for dependentValue in apply.applySite.resultOrYields {
-    let builder = Builder(before: dependentValue.nextInstruction, context)
+    let builder: Builder
+    if let errorBranch {
+      builder = Builder(before: errorBranch.normalBlock.instructions.first!, context)
+    } else {
+      builder = Builder(before: dependentValue.nextInstruction, context)
+    }
     insertMarkDependencies(value: dependentValue, initializer: nil, bases: sources.bases, builder: builder, context)
   }
   for resultOper in apply.applySite.indirectResultOperands {

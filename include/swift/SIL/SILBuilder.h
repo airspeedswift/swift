@@ -2850,6 +2850,14 @@ public:
                           resumeBB, unwindBB, getFunction()));
   }
 
+  BeginApplyErrorBrInst *createBeginApplyErrorBr(SILLocation loc,
+                                                 SILValue token,
+                                                 SILBasicBlock *normalBB,
+                                                 SILBasicBlock *errorBB) {
+    return insertTerminator(new (getModule()) BeginApplyErrorBrInst(
+        getSILDebugLocation(loc), token, normalBB, errorBB));
+  }
+
   AwaitAsyncContinuationInst *createAwaitAsyncContinuation(SILLocation loc,
                                                            SILValue continuation,
                                                            SILBasicBlock *resumeBB,

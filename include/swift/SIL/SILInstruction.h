@@ -10743,6 +10743,7 @@ public:
     case TermKind::SwitchValueInst:
     case TermKind::TryApplyInst:
     case TermKind::AwaitAsyncContinuationInst:
+    case TermKind::BeginApplyErrorBrInst:
     case TermKind::DynamicMethodBranchInst:
       return true;
     }
@@ -10997,6 +10998,44 @@ public:
       return Successors;
     return SuccessorListTy(Successors.data(), 1);
   }
+};
+
+/// BeginApplyErrorBrInst - Branch on whether a throwing coroutine threw
+/// before it yielded.
+///
+///   (%yields..., %token[, %allocation]) = begin_apply %coroutine(...)
+///   begin_apply_error_br %token, normal bbNormal, error bbError
+///   bbError(%error : @owned $any Error):
+///
+/// A begin_apply of a coroutine with an error result must be immediately
+/// followed by this instruction. In the normal successor the access has
+/// begun: the yields are valid until the coroutine is ended, as usual. In the
+/// error successor the coroutine threw before yielding: the access never
+/// began, the yields must not be used, and the token may only be ended with
+/// end_borrow (which runs no code). The callee-allocated frame, if any, is
+/// still deallocated with dealloc_stack.
+class BeginApplyErrorBrInst final
+  : public UnaryInstructionBase<SILInstructionKind::BeginApplyErrorBrInst,
+                                TermInst>
+{
+  friend SILBuilder;
+
+  std::array<SILSuccessor, 2> Successors;
+
+  BeginApplyErrorBrInst(SILDebugLocation Loc, SILValue Token,
+                        SILBasicBlock *normalBB, SILBasicBlock *errorBB)
+    : UnaryInstructionBase(Loc, Token),
+      Successors{{{this, normalBB}, {this, errorBB}}} {}
+
+public:
+  SILValue getToken() const { return getOperand(); }
+
+  BeginApplyInst *getBeginApply() const;
+
+  SILBasicBlock *getNormalBB() const { return Successors[0].getBB(); }
+  SILBasicBlock *getErrorBB() const { return Successors[1].getBB(); }
+
+  SuccessorListTy getSuccessors() { return Successors; }
 };
 
 /// YieldInst - Yield control temporarily to the caller of this coroutine.

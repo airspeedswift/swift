@@ -1699,6 +1699,20 @@ void SILSerializer::writeSILInstruction(const SILInstruction &SI) {
         (unsigned)CBI->getCondition()->getType().getCategory(), ListOfValues);
     break;
   }
+  case SILInstructionKind::BeginApplyErrorBrInst: {
+    auto *BAEB = cast<BeginApplyErrorBrInst>(&SI);
+    // Format: token, normal block ID, error block ID
+    SmallVector<ValueID, 3> ListOfValues;
+    ListOfValues.push_back(addValueRef(BAEB->getToken()));
+    ListOfValues.push_back(BasicBlockMap[BAEB->getNormalBB()]);
+    ListOfValues.push_back(BasicBlockMap[BAEB->getErrorBB()]);
+    SILOneTypeValuesLayout::emitRecord(
+        Out, ScratchRecord, SILAbbrCodes[SILOneTypeValuesLayout::Code],
+        (unsigned)SI.getKind(),
+        S.addTypeRef(BAEB->getToken()->getType().getRawASTType()),
+        (unsigned)BAEB->getToken()->getType().getCategory(), ListOfValues);
+    break;
+  }
   case SILInstructionKind::AwaitAsyncContinuationInst: {
     const AwaitAsyncContinuationInst *AACI
       = cast<AwaitAsyncContinuationInst>(&SI);

@@ -2869,6 +2869,7 @@ void swift::visitAccessedAddress(SILInstruction *I,
   case SILInstructionKind::GetAsyncContinuationInst:
   case SILInstructionKind::GetAsyncContinuationAddrInst:
   case SILInstructionKind::AwaitAsyncContinuationInst:
+  case SILInstructionKind::BeginApplyErrorBrInst:
     return;
   }
 }

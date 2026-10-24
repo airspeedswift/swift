@@ -7146,6 +7146,27 @@ bool SILParser::parseSpecificSILInstruction(SILBuilder &B,
           InstLoc, witnessKind, witness, functionType);
       break;
     }
+    case SILInstructionKind::BeginApplyErrorBrInst: {
+      // 'begin_apply_error_br' token, 'normal' bb, 'error' bb
+      UnresolvedValueName tokenName;
+      Identifier NormalBBName, ErrorBBName;
+      SourceLoc NormalNameLoc, ErrorNameLoc;
+      if (parseValueName(tokenName)
+          || P.parseToken(tok::comma, diag::expected_tok_in_sil_instr, ",")
+          || P.parseSpecificIdentifier("normal", diag::expected_tok_in_sil_instr, "normal")
+          || parseSILIdentifier(NormalBBName, NormalNameLoc, diag::expected_sil_block_name)
+          || P.parseToken(tok::comma, diag::expected_tok_in_sil_instr, ",")
+          || P.parseSpecificIdentifier("error", diag::expected_tok_in_sil_instr, "error")
+          || parseSILIdentifier(ErrorBBName, ErrorNameLoc, diag::expected_sil_block_name)
+          || parseSILDebugLocation(InstLoc, B))
+        return true;
+      SILValue token = getLocalValue(tokenName, SILType::getSILTokenType(P.Context),
+                                     InstLoc, B);
+      ResultVal = B.createBeginApplyErrorBr(
+          InstLoc, token, getBBForReference(NormalBBName, NormalNameLoc),
+          getBBForReference(ErrorBBName, ErrorNameLoc));
+      break;
+    }
     case SILInstructionKind::AwaitAsyncContinuationInst: {
       // 'await_async_continuation' operand, 'resume' bb, 'error' bb
       Identifier ResumeBBName, ErrorBBName{};

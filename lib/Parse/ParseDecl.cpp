@@ -8600,7 +8600,19 @@ ParserStatus Parser::parseGetEffectSpecifier(ParsedAccessors &accessors,
   ParserStatus Status;
 
   if (isEffectsSpecifier(Tok)) {
-    if (currentKind == AccessorKind::Get) {
+    if (currentKind == AccessorKind::YieldingBorrow ||
+        currentKind == AccessorKind::YieldingMutate) {
+      // A yielding accessor may throw before it yields. Coroutine accessors
+      // stay synchronous, so 'async' is rejected.
+      SourceLoc yieldingAsyncLoc;
+      Status |=
+          parseEffectsSpecifiers(/*existingArrowLoc*/ SourceLoc(),
+              yieldingAsyncLoc, /*reasync*/ nullptr, throwsLoc,
+              /*rethrows*/ nullptr, thrownTy);
+      if (yieldingAsyncLoc.isValid())
+        diagnose(yieldingAsyncLoc, diag::invalid_accessor_specifier,
+                 accessorKindName(currentKind), "async");
+    } else if (currentKind == AccessorKind::Get) {
       Status |=
           parseEffectsSpecifiers(/*existingArrowLoc*/ SourceLoc(), asyncLoc,
               /*reasync*/ nullptr, throwsLoc,

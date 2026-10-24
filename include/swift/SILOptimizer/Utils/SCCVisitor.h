@@ -109,6 +109,10 @@ private:
       return;
     }
 
+    case TermKind::BeginApplyErrorBrInst:
+      Operands.push_back(Term->getOperand(0));
+      return;
+
     case TermKind::SwitchEnumInst:
     case TermKind::SwitchEnumAddrInst:
     case TermKind::CheckedCastBranchInst:

@@ -2186,9 +2186,14 @@ void TermInst::replaceBranchTarget(SILBasicBlock *oldDest, SILBasicBlock *newDes
   }
 }
 
+BeginApplyInst *BeginApplyErrorBrInst::getBeginApply() const {
+  return getAsResultOf<BeginApplyInst>(getToken())->getParent<BeginApplyInst>();
+}
+
 bool TermInst::isFunctionExiting() const {
   switch (getTermKind()) {
   case TermKind::AwaitAsyncContinuationInst:
+  case TermKind::BeginApplyErrorBrInst:
   case TermKind::BranchInst:
   case TermKind::CondBranchInst:
   case TermKind::SwitchValueInst:
@@ -2215,6 +2220,7 @@ bool TermInst::isFunctionExiting() const {
 bool TermInst::isProgramTerminating() const {
   switch (getTermKind()) {
   case TermKind::AwaitAsyncContinuationInst:
+  case TermKind::BeginApplyErrorBrInst:
   case TermKind::BranchInst:
   case TermKind::CondBranchInst:
   case TermKind::SwitchValueInst:
@@ -2263,6 +2269,7 @@ const Operand *TermInst::forwardedOperand() const {
   case TermKind::DynamicMethodBranchInst:
   case TermKind::CheckedCastAddrBranchInst:
   case TermKind::AwaitAsyncContinuationInst:
+  case TermKind::BeginApplyErrorBrInst:
     return nullptr;
   case TermKind::SwitchEnumInst: {
     auto *switchEnum = cast<SwitchEnumInst>(this);

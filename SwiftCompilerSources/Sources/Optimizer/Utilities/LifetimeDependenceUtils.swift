@@ -916,7 +916,8 @@ extension LifetimeDependenceDefUseWalker {
          is DestroyNotEscapedClosureInst, is ClassMethodInst, is SuperMethodInst,
          is ClassifyBridgeObjectInst, is DebugValueInst,
          is ObjCMethodInst, is ObjCSuperMethodInst, is UnmanagedRetainValueInst,
-         is UnmanagedReleaseValueInst, is SelectEnumInst, is IgnoredUseInst:
+         is UnmanagedReleaseValueInst, is SelectEnumInst, is IgnoredUseInst,
+         is BeginApplyErrorBrInst:
       // Catch .instantaneousUse operations that are dependence leaf uses.
       return leafUse(of: operand)
 

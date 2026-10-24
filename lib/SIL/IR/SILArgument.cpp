@@ -313,6 +313,7 @@ getSingleTerminatorOperandForPred(const SILBasicBlock *parentBlock,
   case TermKind::DynamicMethodBranchInst:
   case TermKind::YieldInst:
   case TermKind::AwaitAsyncContinuationInst:
+  case TermKind::BeginApplyErrorBrInst:
   case TermKind::CondBranchInst:
     return SILValue();
   case TermKind::BranchInst:

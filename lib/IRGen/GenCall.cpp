@@ -5488,6 +5488,27 @@ void irgen::emitDeallocCoroStaticFrame(IRGenFunction &IGF, StackAddress frame) {
                                   /*forCalleeCoroutineFrame*/ true);
 }
 
+void irgen::emitUndefYield(IRGenFunction &IGF,
+                           CanSILFunctionType coroutineType) {
+  // The ramp's return type is {continuation, yield components...} or just the
+  // continuation pointer. Suspend with poison for every yield component.
+  auto coroSignature = IGF.IGM.getSignature(coroutineType);
+  SmallVector<llvm::Value *, 8> yieldArgs;
+  if (auto *resultStructTy =
+          dyn_cast<llvm::StructType>(coroSignature.getType()->getReturnType())) {
+    for (unsigned i = 1, e = resultStructTy->getNumElements(); i != e; ++i)
+      yieldArgs.push_back(
+          llvm::PoisonValue::get(resultStructTy->getElementType(i)));
+  }
+  if (coroutineType->isCalleeAllocatedCoroutine()) {
+    IGF.Builder.CreateIntrinsicCall(llvm::Intrinsic::coro_suspend_retcon,
+                                    {IGF.IGM.CoroAllocatorPtrTy}, yieldArgs);
+  } else {
+    IGF.Builder.CreateIntrinsicCall(llvm::Intrinsic::coro_suspend_retcon,
+                                    {IGF.IGM.Int1Ty}, yieldArgs);
+  }
+}
+
 llvm::Value *irgen::emitYield(IRGenFunction &IGF,
                               CanSILFunctionType coroutineType,
                               Explosion &substValues) {

@@ -2596,10 +2596,20 @@ static AccessorDecl *createGetterPrototype(AbstractStorageDecl *storage,
   if (storage->isStatic())
     staticLoc = storage->getLoc();
 
+  // A getter synthesized over a throwing 'yielding borrow' throws what the
+  // coroutine throws.
+  bool throws = false;
+  TypeLoc thrownType;
+  if (auto *throwing = storage->getThrowingYieldingAccessor()) {
+    throws = true;
+    if (Type thrownTy = throwing->getThrownInterfaceType())
+      thrownType = TypeLoc::withoutLoc(thrownTy);
+  }
+
   auto getter = AccessorDecl::create(
       ctx, loc, /*AccessorKeywordLoc*/ loc, AccessorKind::Get, storage,
       /*Async=*/false, /*AsyncLoc=*/SourceLoc(),
-      /*Throws=*/false, /*ThrowsLoc=*/SourceLoc(), /*ThrownType=*/TypeLoc(),
+      /*Throws=*/throws, /*ThrowsLoc=*/SourceLoc(), thrownType,
       getterParams, Type(), storage->getDeclContext());
   getter->setSynthesized();
 
@@ -3110,6 +3120,9 @@ static bool requiresCorrespondingLegacyCoroutineAccessorImpl(
 
 bool AbstractStorageDecl::requiresCorrespondingLegacyCoroutineAccessor(
     AccessorKind kind, AccessorDecl const *decl) const {
+  // '_read' and '_modify' cannot throw.
+  if (getThrowingYieldingAccessor())
+    return false;
   return requiresCorrespondingLegacyCoroutineAccessorImpl(
       this, kind, decl,
       /*derived=*/this);

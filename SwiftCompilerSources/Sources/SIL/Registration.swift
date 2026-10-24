@@ -268,6 +268,7 @@ private func registerSILClasses() {
   register(SelectEnumAddrInst.self)
   register(DynamicMethodBranchInst.self)
   register(AwaitAsyncContinuationInst.self)
+  register(BeginApplyErrorBrInst.self)
   register(CheckedCastBranchInst.self)
   register(CheckedCastAddrBranchInst.self)
   register(ThunkInst.self)

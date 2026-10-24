@@ -3637,6 +3637,16 @@ bool SILDeserializer::readSILInstruction(SILFunction *Fn,
         getBBForReference(Fn, ListOfValues[2]));
     break;
   }
+  case SILInstructionKind::BeginApplyErrorBrInst: {
+    // Format: token, normal block ID, error block ID
+    SILValue token = getLocalValue(
+        Builder.maybeGetFunction(), ListOfValues[0],
+        getSILType(MF->getType(TyID), (SILValueCategory)TyCategory, Fn));
+    ResultInst = Builder.createBeginApplyErrorBr(
+        Loc, token, getBBForReference(Fn, ListOfValues[1]),
+        getBBForReference(Fn, ListOfValues[2]));
+    break;
+  }
   case SILInstructionKind::AwaitAsyncContinuationInst: {
     // Format: continuation, resume block ID, error block ID if given
     SILValue Cont = getLocalValue(
