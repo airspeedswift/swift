@@ -6562,6 +6562,19 @@ public:
   ///          Otherwise returns nullptr.
   AccessorDecl *getEffectfulGetAccessor() const;
 
+  /// \returns the explicit 'yielding borrow' (preferred) or 'yielding mutate'
+  ///          accessor if it is 'throws'. Every access to such storage throws.
+  ///          Otherwise returns nullptr.
+  AccessorDecl *getThrowingYieldingAccessor() const;
+
+  /// \returns the accessor whose effects every access to this storage has:
+  ///          the effectful 'get' or the throwing yielding accessor.
+  AccessorDecl *getEffectfulAccessor() const {
+    if (auto *get = getEffectfulGetAccessor())
+      return get;
+    return getThrowingYieldingAccessor();
+  }
+
   /// Performs a "limit check" on an effect possibly exhibited by this storage
   /// decl with respect to some other storage decl that serves as the "limit."
   /// This check says that \c this is less effectful than \c other if

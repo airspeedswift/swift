@@ -136,6 +136,9 @@ struct CoroutineState {
   Implementation Impl;
   llvm::Value *Continuation;
   TemporarySet Temporaries;
+  /// For a begin_apply of a throwing coroutine, the error the ramp left in the
+  /// callee error slot (null if it yielded). Consumed by begin_apply_error_br.
+  llvm::Value *RampError = nullptr;
   bool isCalleeAllocated() const { return Impl.isa<CalleeAllocated>(); }
   StackAddress getCalleeAllocatedFrame() const {
     assert(isCalleeAllocated());
@@ -1611,6 +1614,7 @@ public:
   void visitGetAsyncContinuationInst(GetAsyncContinuationInst *i);
   void visitGetAsyncContinuationAddrInst(GetAsyncContinuationAddrInst *i);
   void visitAwaitAsyncContinuationInst(AwaitAsyncContinuationInst *i);
+  void visitBeginApplyErrorBrInst(BeginApplyErrorBrInst *i);
 
   void visitHopToExecutorInst(HopToExecutorInst *i);
   void visitExtractExecutorInst(ExtractExecutorInst *i) {
@@ -4246,9 +4250,26 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
     // Grab the continuation pointer.  This will still be an i8*.
     auto continuation = result.claimNext();
 
+    // A throwing coroutine reports an error thrown before its yield in the
+    // callee error slot when the ramp returns. Read it now, and restore the
+    // slot's invariant that it contains null.
+    llvm::Value *rampError = nullptr;
+    if (substCalleeType->hasErrorResult() && !beginApply->isNonThrowing()) {
+      SILFunctionConventions substConv(substCalleeType, IGM.silConv);
+      assert(!substConv.isTypedError() &&
+             "typed throws from a coroutine is not supported yet");
+      SILType errorType =
+          substConv.getSILErrorType(IGM.getMaximalTypeExpansionContext());
+      Address calleeErrorSlot =
+          emission->getCalleeErrorSlot(errorType, /*isCalleeAsync=*/false);
+      rampError = Builder.CreateLoad(calleeErrorSlot);
+      Builder.CreateStore(llvm::Constant::getNullValue(rampError->getType()),
+                          calleeErrorSlot);
+    }
+
     setLoweredCoroutine(
         beginApply->getTokenResult(),
-        {*coroImpl, continuation, emission->claimTemporaries()});
+        {*coroImpl, continuation, emission->claimTemporaries(), rampError});
 
     setCorrespondingLoweredValues(beginApply->getYieldedValues(), result);
 
@@ -4881,6 +4902,21 @@ void IRGenSILFunction::visitThrowInst(swift::ThrowInst *i) {
                               IGM.silConv);
   assert(!conv.hasIndirectSILErrorResults());
 
+  // A yield-once coroutine can only throw before it yields. LLVM's yield-once
+  // lowering requires exactly one suspension, so leave the error in the error
+  // slot and suspend with undefined yields: the ramp returns, and the caller's
+  // begin_apply_error_br sees the error, resumes the coroutine to let it
+  // finish, and branches to its error successor.
+  if (CurSILFn->getLoweredFunctionType()->isCoroutine() && !isAsync()) {
+    assert(!conv.isTypedError() &&
+           "typed throws from a coroutine is not supported yet");
+    Explosion errorResult = getLoweredExplosion(i->getOperand());
+    Builder.CreateStore(errorResult.claimNext(), getCallerErrorResultSlot());
+    emitUndefYield(*this, CurSILFn->getLoweredFunctionType());
+    emitCoroutineOrAsyncExit(/*isUnwind*/ false);
+    return;
+  }
+
   if (!isAsync()) {
     auto fnTy = CurFn->getFunctionType();
     auto retTy = fnTy->getReturnType();
@@ -5075,6 +5111,38 @@ void IRGenSILFunction::visitYieldInst(swift::YieldInst *i) {
 
 void IRGenSILFunction::visitBeginApplyInst(BeginApplyInst *i) {
   visitFullApplySite(i);
+}
+
+void IRGenSILFunction::visitBeginApplyErrorBrInst(BeginApplyErrorBrInst *i) {
+  auto *beginApply = i->getBeginApply();
+  llvm::Value *rampError =
+      getLoweredCoroutine(beginApply->getTokenResult()).RampError;
+  assert(rampError && "begin_apply_error_br of a non-throwing begin_apply");
+
+  auto &normalDest = getLoweredBB(i->getNormalBB());
+  auto &errorDest = getLoweredBB(i->getErrorBB());
+
+  auto nullError = llvm::Constant::getNullValue(rampError->getType());
+  llvm::Value *hasError = Builder.CreateICmpNE(rampError, nullError);
+  if (IGM.getSILModule().getOptions().EnableThrowsPrediction)
+    hasError = Builder.CreateExpectCond(IGM, hasError, false);
+
+  auto *threwBB = createBasicBlock("coro.threw");
+  Builder.CreateCondBr(hasError, threwBB, normalDest.bb);
+
+  // The coroutine threw before it yielded: its ramp suspended with undefined
+  // yields only so that it could return. Resume it as an abort so that it runs
+  // to its end and releases any storage it allocated, then branch to the error
+  // destination. The SIL in the error successor does not touch the coroutine
+  // again: it only ends the token with end_borrow and deallocates a
+  // callee-allocated frame.
+  Builder.emitBlock(threwBB);
+  visitEndApply(beginApply, /*ei*/ nullptr);
+  Explosion errorValue;
+  errorValue.add(rampError);
+  unsigned phiIndex = 0;
+  addIncomingExplosionToPHINodes(*this, errorDest, phiIndex, errorValue);
+  Builder.CreateBr(errorDest.bb);
 }
 
 void IRGenSILFunction::visitEndApplyInst(EndApplyInst *i) {

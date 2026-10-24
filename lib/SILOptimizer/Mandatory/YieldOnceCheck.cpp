@@ -114,7 +114,12 @@ class YieldOnceCheck : public SILFunctionTransform {
   /// some context information that will be used by diagnostics.
   struct YieldError {
     /// The kind of error.
-    enum Kind { MultipleYield, ReturnBeforeYield, ReturnOnConflict } errorKind;
+    enum Kind {
+      MultipleYield,
+      ReturnBeforeYield,
+      ReturnOnConflict,
+      ThrowAfterYield
+    } errorKind;
     /// The termination instruction where the error should be reported.
     SILInstruction *termInst;
     /// The input state when the error is encountered.
@@ -134,6 +139,11 @@ class YieldOnceCheck : public SILFunctionTransform {
                                                 BBState state) {
       assert(state.yieldState == BBState::BeforeYield);
       return YieldError(ReturnBeforeYield, returnI, state);
+    }
+
+    static YieldError getThrowAfterYield(ThrowInst *throwI, BBState state) {
+      assert(state.yieldState != BBState::BeforeYield);
+      return YieldError(ThrowAfterYield, throwI, state);
     }
 
     static YieldError getReturnOnConflict(ReturnInst *returnI, BBState state) {
@@ -180,8 +190,17 @@ class YieldOnceCheck : public SILFunctionTransform {
       return inState.getAfterYieldState(term);
     }
 
-    // We cannot have throws within generalized accessors.
-    assert(!isa<ThrowInst>(term));
+    // A throwing yielding accessor may only throw before it yields: once it
+    // has yielded, the access has begun and the caller cannot observe an error.
+    if (auto *throwInst = dyn_cast<ThrowInst>(term)) {
+      if (inState.yieldState != BBState::BeforeYield) {
+        error = YieldError::getThrowAfterYield(throwInst, inState);
+        return std::nullopt;
+      }
+      return inState;
+    }
+    assert(!isa<ThrowAddrInst>(term) &&
+           "indirect errors from coroutines are not supported");
 
     return inState;
   }
@@ -340,6 +359,33 @@ class YieldOnceCheck : public SILFunctionTransform {
     case YieldError::ReturnBeforeYield: {
       diagnose(astCtx, error.termInst->getLoc().getSourceLoc(),
                diag::return_before_yield);
+      return;
+    }
+    case YieldError::ThrowAfterYield: {
+      // A propagated error is thrown at the end of the accessor. Report it at
+      // the call that threw it.
+      SourceLoc loc = error.termInst->getLoc().getSourceLoc();
+      SILValue thrown = cast<ThrowInst>(error.termInst)->getOperand();
+      for (unsigned depth = 0; depth < 8; ++depth) {
+        auto *arg = dyn_cast<SILPhiArgument>(thrown);
+        if (!arg)
+          break;
+        if (auto *pred = arg->getParent()->getSinglePredecessorBlock()) {
+          if (auto *tryApply = dyn_cast<TryApplyInst>(pred->getTerminator())) {
+            if (tryApply->getErrorBB() == arg->getParent()) {
+              loc = tryApply->getLoc().getSourceLoc();
+              break;
+            }
+          }
+        }
+        SmallVector<SILValue, 4> incoming;
+        if (!arg->getIncomingPhiValues(incoming) || incoming.empty())
+          break;
+        thrown = incoming.front();
+      }
+      diagnose(astCtx, loc, diag::throw_after_yield);
+      if (auto *yield = error.inState.getYieldInstruction())
+        diagnose(astCtx, yield->getLoc().getSourceLoc(), diag::previous_yield);
       return;
     }
     case YieldError::MultipleYield: {

@@ -2441,9 +2441,22 @@ public:
     if (AI->isNonThrowing()) {
       require(calleeConv.funcTy->hasErrorResult(),
               "nothrow flag used for callee without error result");
-    } else {
-      require(!calleeConv.funcTy->hasErrorResult(),
-              "begin_apply instruction cannot call function with error result");
+    } else if (calleeConv.funcTy->hasErrorResult()) {
+      auto *errorBr =
+          dyn_cast<BeginApplyErrorBrInst>(AI->getParent()->getTerminator());
+      require(errorBr && errorBr->getToken() == AI->getTokenResult(),
+              "begin_apply of a throwing coroutine must be followed by a "
+              "begin_apply_error_br of its token in the same block");
+      // The yields are not valid until the coroutine is known not to have
+      // thrown.
+      for (SILValue yield : AI->getYieldedValues()) {
+        for (Operand *use : yield->getUses()) {
+          require(Dominance->dominates(errorBr->getNormalBB(),
+                                       use->getUser()->getParent()),
+                  "yield of a throwing coroutine used before "
+                  "begin_apply_error_br or on its error path");
+        }
+      }
     }
 
     auto coroKind = calleeConv.funcTy->getCoroutineKind();
@@ -6614,6 +6627,46 @@ public:
                     "Operand type must match continuation resume type");
   }
   
+  void checkBeginApplyErrorBrInst(BeginApplyErrorBrInst *BI) {
+    auto *result = getAsResultOf<BeginApplyInst>(BI->getToken());
+    require(result && result->isBeginApplyToken(),
+            "operand of begin_apply_error_br must be a begin_apply token");
+    auto *bai = BI->getBeginApply();
+    require(bai->getParent() == BI->getParent(),
+            "begin_apply_error_br must be in the begin_apply's block");
+    require(!bai->isNonThrowing(),
+            "begin_apply_error_br of a [nothrow] begin_apply");
+    SILFunctionConventions calleeConv(bai->getSubstCalleeType(), fnConv.silConv);
+    require(calleeConv.funcTy->hasErrorResult(),
+            "begin_apply_error_br of a coroutine without an error result");
+    require(!calleeConv.isTypedError() ||
+                !calleeConv.hasIndirectSILErrorResults(),
+            "begin_apply_error_br does not support indirect errors yet");
+    require(BI->getNormalBB()->getNumArguments() == 0,
+            "normal successor of begin_apply_error_br takes no arguments");
+    require(BI->getErrorBB()->getNumArguments() == 1,
+            "error successor of begin_apply_error_br takes the error");
+    auto *errorArg = BI->getErrorBB()->getArgument(0);
+    requireSameType(errorArg->getType(),
+                    calleeConv.getSILErrorType(F.getTypeExpansionContext()),
+                    "error successor argument must have the error type");
+    if (F.hasOwnership())
+      require(errorArg->getOwnershipKind() == OwnershipKind::Owned ||
+                  errorArg->getOwnershipKind() == OwnershipKind::None,
+              "error successor argument must be owned");
+    // In the error successor, the coroutine never yielded: it may not be
+    // resumed or aborted.
+    for (Operand *use : BI->getToken()->getUses()) {
+      auto *user = use->getUser();
+      if (user == BI)
+        continue;
+      if (!Dominance->dominates(BI->getErrorBB(), user->getParent()))
+        continue;
+      require(isa<EndBorrowInst>(user),
+              "a coroutine that threw may only be ended with end_borrow");
+    }
+  }
+
   void checkAwaitAsyncContinuationInst(AwaitAsyncContinuationInst *AACI) {
     // The operand must be a GetAsyncContinuation* instruction.
     auto cont = dyn_cast<GetAsyncContinuationInstBase>(AACI->getOperand());

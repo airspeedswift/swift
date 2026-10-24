@@ -1,0 +1,33 @@
+// RUN: %target-sil-opt -sil-verify-all -enable-experimental-feature CoroutineAccessors %s | %target-sil-opt -sil-verify-all -enable-experimental-feature CoroutineAccessors | %FileCheck %s
+
+// REQUIRES: swift_feature_CoroutineAccessors
+
+sil_stage canonical
+
+import Builtin
+import Swift
+
+sil @coro : $@yield_once_2 @convention(thin) (Int) -> (@yields Int, @error any Error)
+
+// CHECK-LABEL: sil [ossa] @caller : $@convention(thin) (Int) -> (Int, @error any Error) {
+// CHECK:         ({{%.*}}, [[TOKEN:%.*]], {{%.*}}) = begin_apply
+// CHECK-NEXT:    begin_apply_error_br [[TOKEN]], normal bb1, error bb2
+// CHECK:       bb2([[E:%.*]] : @owned $any Error):
+// CHECK-NEXT:    end_borrow [[TOKEN]]
+// CHECK-LABEL: } // end sil function 'caller'
+sil [ossa] @caller : $@convention(thin) (Int) -> (Int, @error any Error) {
+bb0(%0 : $Int):
+  %1 = function_ref @coro : $@yield_once_2 @convention(thin) (Int) -> (@yields Int, @error any Error)
+  (%2, %3, %4) = begin_apply %1(%0) : $@yield_once_2 @convention(thin) (Int) -> (@yields Int, @error any Error)
+  begin_apply_error_br %3, normal bb1, error bb2
+
+bb1:
+  %6 = end_apply %3 as $()
+  dealloc_stack %4
+  return %2
+
+bb2(%9 : @owned $any Error):
+  end_borrow %3
+  dealloc_stack %4
+  throw %9
+}

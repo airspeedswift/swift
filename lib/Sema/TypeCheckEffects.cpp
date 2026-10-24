@@ -299,8 +299,8 @@ static ConcreteDeclRef getEffectfulGetOnlyAccessor(ConcreteDeclRef cdr) {
     return nullptr;
 
   if (auto storageDecl = dyn_cast<AbstractStorageDecl>(cdr.getDecl())) {
-    if (auto getAccessor = storageDecl->getEffectfulGetAccessor())
-      return ConcreteDeclRef(getAccessor, cdr.getSubstitutions());
+    if (auto accessor = storageDecl->getEffectfulAccessor())
+      return ConcreteDeclRef(accessor, cdr.getSubstitutions());
   }
 
   return nullptr;

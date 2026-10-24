@@ -3232,6 +3232,12 @@ public:
           << ", " << getIDAndType(GI->getOperand());
   }
 
+  void visitBeginApplyErrorBrInst(BeginApplyErrorBrInst *BI) {
+    *this << Ctx.getID(BI->getToken())
+          << ", normal " << Ctx.getID(BI->getNormalBB())
+          << ", error " << Ctx.getID(BI->getErrorBB());
+  }
+
   void visitAwaitAsyncContinuationInst(AwaitAsyncContinuationInst *AI) {
     *this << getIDAndType(AI->getOperand())
           << ", resume " << Ctx.getID(AI->getResumeBB());

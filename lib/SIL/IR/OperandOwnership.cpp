@@ -149,6 +149,8 @@ SHOULD_NEVER_VISIT_INST(TypeValue)
 
 // Instructions that require trivial operands.
 OPERAND_OWNERSHIP(TrivialUse, AwaitAsyncContinuation)
+// The token is only inspected; the coroutine's scope is ended elsewhere.
+OPERAND_OWNERSHIP(InstantaneousUse, BeginApplyErrorBr)
 OPERAND_OWNERSHIP(TrivialUse, AddressToPointer)
 OPERAND_OWNERSHIP(TrivialUse, AllocRef)        // with tail operand
 OPERAND_OWNERSHIP(TrivialUse, AllocRefDynamic) // with tail operand

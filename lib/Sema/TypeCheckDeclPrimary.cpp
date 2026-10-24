@@ -2277,6 +2277,77 @@ static bool isCOMMetatypeExtension(const ExtensionDecl *ED) {
   return proto && proto->isCOMInterface();
 }
 
+/// A 'yielding borrow' or 'yielding mutate' accessor may throw before it
+/// yields. Every access to such storage is then a throwing access, so the
+/// storage may not have accessors that cannot throw, and both yielding
+/// accessors must have the same effects.
+static void checkThrowingYieldingAccessors(AbstractStorageDecl *storage) {
+  AccessorDecl *throwing = nullptr;
+  for (auto *accessor : storage->getAllAccessors()) {
+    if (accessor->isImplicit())
+      continue;
+    switch (accessor->getAccessorKind()) {
+    case AccessorKind::YieldingBorrow:
+    case AccessorKind::YieldingMutate:
+      if (accessor->hasThrows() && !throwing)
+        throwing = accessor;
+      break;
+    default:
+      break;
+    }
+  }
+  if (!throwing)
+    return;
+
+  auto &ctx = storage->getASTContext();
+
+  // Typed throws from a coroutine is not implemented yet: only 'any Error'
+  // (and 'Never') is lowered.
+  for (auto *accessor : storage->getAllAccessors()) {
+    if (accessor->isImplicit() || !accessor->hasThrows())
+      continue;
+    if (Type thrownType = accessor->getThrownInterfaceType()) {
+      if (!thrownType->isNever() && !thrownType->isErrorExistentialType()) {
+        ctx.Diags.diagnose(accessor->getLoc(),
+                           diag::yielding_accessor_typed_throws_unsupported,
+                           getAccessorNameForDiagnostic(accessor, true, false));
+        return;
+      }
+    }
+  }
+  auto name = [](AccessorDecl *accessor) {
+    return getAccessorNameForDiagnostic(accessor, /*article*/ true,
+                                        /*underscored*/ false);
+  };
+  for (auto *accessor : storage->getAllAccessors()) {
+    if (accessor->isImplicit() || accessor == throwing)
+      continue;
+    switch (accessor->getAccessorKind()) {
+    case AccessorKind::YieldingBorrow:
+    case AccessorKind::YieldingMutate: {
+      Type thrownType = throwing->getThrownInterfaceType();
+      Type otherThrownType = accessor->getThrownInterfaceType();
+      bool sameThrownType =
+          (!thrownType && !otherThrownType) ||
+          (thrownType && otherThrownType &&
+           thrownType->getCanonicalType() ==
+               otherThrownType->getCanonicalType());
+      if (!accessor->hasThrows() || !sameThrownType) {
+        ctx.Diags.diagnose(accessor->getLoc(),
+                           diag::yielding_accessor_effects_mismatch,
+                           name(accessor), name(throwing));
+      }
+      break;
+    }
+    default:
+      ctx.Diags.diagnose(accessor->getLoc(),
+                         diag::accessor_with_throwing_yielding_accessor,
+                         name(accessor), name(throwing));
+      break;
+    }
+  }
+}
+
 class DeclChecker : public DeclVisitor<DeclChecker> {
 public:
   ASTContext &Ctx;
@@ -2635,6 +2706,7 @@ public:
     // Compute these requests in case they emit diagnostics.
     TypeChecker::applyAccessNote(VD);
     (void) VD->getInterfaceType();
+    checkThrowingYieldingAccessors(VD);
     (void) VD->isGetterMutating();
     (void) VD->isSetterMutating();
     (void) VD->getPropertyWrapperAuxiliaryVariables();
@@ -3073,6 +3145,7 @@ public:
     (void) SD->isGetterMutating();
     (void) SD->isSetterMutating();
     (void) SD->getImplInfo();
+    checkThrowingYieldingAccessors(SD);
 
     TypeChecker::checkParameterList(SD->getIndices(), SD);
 

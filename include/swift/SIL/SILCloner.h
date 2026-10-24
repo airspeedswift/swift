@@ -4154,6 +4154,18 @@ void SILCloner<ImplClass>
 
 template <typename ImplClass>
 void SILCloner<ImplClass>
+::visitBeginApplyErrorBrInst(BeginApplyErrorBrInst *Inst) {
+  getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
+  recordClonedInstruction(Inst,
+                          getBuilder().createBeginApplyErrorBr(
+                            getOpLocation(Inst->getLoc()),
+                            getOpValue(Inst->getToken()),
+                            getOpBasicBlock(Inst->getNormalBB()),
+                            getOpBasicBlock(Inst->getErrorBB())));
+}
+
+template <typename ImplClass>
+void SILCloner<ImplClass>
 ::visitAwaitAsyncContinuationInst(AwaitAsyncContinuationInst *Inst) {
   getBuilder().setCurrentDebugScope(getOpScope(Inst->getDebugScope()));
   recordClonedInstruction(Inst,

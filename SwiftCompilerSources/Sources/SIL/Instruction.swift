@@ -2602,6 +2602,14 @@ final public class DynamicMethodBranchInst : TermInst {
 final public class AwaitAsyncContinuationInst : TermInst, UnaryInstruction {
 }
 
+/// Branches on whether a throwing coroutine threw before it yielded. Terminates the begin_apply's block.
+final public class BeginApplyErrorBrInst : TermInst, UnaryInstruction {
+  public var token: Value { operand.value }
+  public var beginApply: BeginApplyInst { token.definingInstruction as! BeginApplyInst }
+  public var normalBlock: BasicBlock { successors[0] }
+  public var errorBlock: BasicBlock { successors[1] }
+}
+
 public struct CheckedCastInstOptions {
   var storage: UInt8 = 0
 

@@ -173,6 +173,7 @@ TransitiveAddressWalker<Impl>::walk(SILValue projectedAddress) {
       case TermKind::SwitchValueInst:
       case TermKind::DynamicMethodBranchInst:
       case TermKind::AwaitAsyncContinuationInst:
+      case TermKind::BeginApplyErrorBrInst:
       case TermKind::CheckedCastBranchInst:
         llvm_unreachable("Never takes an address");
       // Point uses.

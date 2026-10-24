@@ -4058,6 +4058,15 @@ WARNING(override_with_stored_property_warn,none,
       "cannot override with a stored property %0", (Identifier))
 ERROR(observing_readonly_property,none,
       "cannot observe read-only property %0; it can't change", (Identifier))
+ERROR(accessor_with_throwing_yielding_accessor,none,
+      "%0 is not allowed together with %1 that is 'throws'",
+      (StringRef, StringRef))
+ERROR(yielding_accessor_typed_throws_unsupported,none,
+      "%0 cannot have a typed 'throws' clause yet; use 'throws'",
+      (StringRef))
+ERROR(yielding_accessor_effects_mismatch,none,
+      "%0 must have the same 'throws' clause as %1",
+      (StringRef, StringRef))
 ERROR(override_mutable_with_readonly_property,none,
       "cannot override mutable property with read-only property %0",
       (Identifier))

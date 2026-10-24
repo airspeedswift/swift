@@ -302,6 +302,19 @@ void swift::silverifier::verifyFlowSensitiveRules(SILFunction *F) {
     SILBasicBlock *BB = Worklist.pop_back_val();
     BBState state = visitedBBs[BB];
 
+    // Without ownership there is no end_borrow of the token: entering the
+    // error successor of begin_apply_error_br ends the coroutine, which threw
+    // before yielding.
+    if (!F->hasOwnership()) {
+      if (auto *pred = BB->getSinglePredecessorBlock()) {
+        if (auto *errorBr =
+                dyn_cast<BeginApplyErrorBrInst>(pred->getTerminator())) {
+          if (errorBr->getErrorBB() == BB)
+            state.ActiveOps.erase(errorBr->getToken());
+        }
+      }
+    }
+
     for (SILInstruction &i : *BB) {
       auto _require = [&](bool value, StringLiteral msg) {
         if (value)
@@ -404,7 +417,14 @@ void swift::silverifier::verifyFlowSensitiveRules(SILFunction *F) {
       }
 
       if (auto *endBorrow = dyn_cast<EndBorrowInst>(&i)) {
-        if (isa<StoreBorrowInst>(endBorrow->getOperand())) {
+        // end_borrow of a begin_apply token ends a coroutine that is not
+        // running: one that threw before yielding (after
+        // begin_apply_error_br), or one on a dead-end path.
+        SILValue operand = endBorrow->getOperand();
+        auto *bai = dyn_cast_or_null<BeginApplyInst>(
+            operand->getDefiningInstruction());
+        if (isa<StoreBorrowInst>(operand) ||
+            (bai && operand == bai->getTokenResult())) {
           state.handleScopeEndingInst(i);
         }
         continue;

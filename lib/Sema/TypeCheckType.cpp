@@ -6019,6 +6019,13 @@ bool TypeResolver::resolveSILResults(
     SmallVectorImpl<SILYieldInfo> &yields,
     SmallVectorImpl<SILResultInfo> &ordinaryResults,
     std::optional<SILResultInfo> &errorResult) {
+  // Look through a result lifetime dependence written before a parenthesized
+  // result list, as in '-> @lifetime(borrow 0) (@yields T, @error E)'. The
+  // dependence itself is processed when building the SILFunctionType.
+  if (auto *lifetimeRepr = dyn_cast<LifetimeDependentTypeRepr>(repr)) {
+    if (isa<TupleTypeRepr>(lifetimeRepr->getBase()))
+      repr = lifetimeRepr->getBase();
+  }
   if (auto tuple = dyn_cast<TupleTypeRepr>(repr)) {
     // If any of the elements have a label, or an explicit missing label (_:),
     // resolve the entire result type as a single tuple type.

@@ -457,6 +457,7 @@ struct TermArgSources {
     case TermKind::SwitchEnumInst:
     case TermKind::SwitchEnumAddrInst:
     case TermKind::AwaitAsyncContinuationInst:
+    case TermKind::BeginApplyErrorBrInst:
     case TermKind::CheckedCastAddrBranchInst:
       llvm_unreachable("Unsupported?!");
 
@@ -4126,6 +4127,8 @@ CONSTANT_TRANSLATION(InjectEnumAddrInst, Ignored)
 CONSTANT_TRANSLATION(DestroyNotEscapedClosureInst, Ignored)
 CONSTANT_TRANSLATION(EndApplyInst, Ignored)
 CONSTANT_TRANSLATION(AbortApplyInst, Ignored)
+// Only inspects the token; the error it produces is Sendable.
+CONSTANT_TRANSLATION(BeginApplyErrorBrInst, Ignored)
 CONSTANT_TRANSLATION(DebugStepInst, Ignored)
 CONSTANT_TRANSLATION(IncrementProfilerCounterInst, Ignored)
 CONSTANT_TRANSLATION(SpecifyTestInst, Ignored)

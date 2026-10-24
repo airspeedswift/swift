@@ -2151,13 +2151,50 @@ static void emitRawApply(SILGenFunction &SGF,
 
   // If the function is a coroutine, we need to use 'begin_apply'.
   if (substFnType->isCoroutine()) {
-    assert(!substFnType->hasErrorResult());
+    // A throwing coroutine can only throw before it yields.
+    bool throws = substFnType->hasErrorResult();
+    bool suppressErrorPath =
+        throws &&
+        (options.contains(ApplyFlags::DoesNotThrow) ||
+         (!SGF.F.getLoweredFunctionType()->hasErrorResult() &&
+          substFnType->getErrorResult().getInterfaceType()->isNever()));
+    ApplyOptions beginOptions;
+    if (suppressErrorPath)
+      beginOptions |= ApplyFlags::DoesNotThrow;
     auto apply =
-        SGF.B.createBeginApply(loc, fnValue, subs, argValues, ApplyOptions(),
+        SGF.B.createBeginApply(loc, fnValue, subs, argValues, beginOptions,
                                /*specializationInfo=*/nullptr,
                                /*isolationCrossing=*/std::nullopt, argLocsRef);
     for (auto result : apply->getAllResults())
       rawResults.push_back(result);
+    if (!throws || suppressErrorPath)
+      return;
+
+    // Branch on whether the coroutine threw. In the error successor the
+    // access never began: end the token without resuming the coroutine,
+    // deallocate its frame, and propagate the error. The caller pushes the
+    // end_apply and frame cleanups only for the normal successor.
+    assert(!indirectErrorAddr &&
+           "typed throws from a coroutine is not supported yet");
+    SILType errorType =
+        substFnConv.getSILErrorType(SGF.getTypeExpansionContext());
+    SILBasicBlock *throwDest = SGF.getTryApplyErrorDest(
+        loc, substFnType, prevExecutor, errorType, /*suppressErrorPath*/ false);
+    SILBasicBlock *normalBB = SGF.createBasicBlock();
+    SILBasicBlock *errorBB = SGF.createBasicBlock(FunctionSection::Postmatter);
+    SILValue errorArg =
+        errorBB->createPhiArgument(errorType, OwnershipKind::Owned);
+    SGF.B.createBeginApplyErrorBr(loc, apply->getTokenResult(), normalBB,
+                                  errorBB);
+    {
+      SILGenSavedInsertionPoint savedIP(SGF, errorBB,
+                                        FunctionSection::Postmatter);
+      SGF.B.createEndBorrow(loc, apply->getTokenResult());
+      if (auto *allocation = apply->getCalleeAllocationResult())
+        SGF.B.createDeallocStack(loc, allocation);
+      SGF.B.createBranch(loc, throwDest, {errorArg});
+    }
+    SGF.B.emitBlock(normalBB);
     return;
   }
 

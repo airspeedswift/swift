@@ -260,6 +260,10 @@ namespace irgen {
   ///
   /// \return an i1 indicating whether the caller wants to unwind this
   ///   coroutine instead of resuming it normally
+  /// Suspend a yield-once coroutine that threw before yielding, with undefined
+  /// yields, so that its ramp can return the error to the caller.
+  void emitUndefYield(IRGenFunction &IGF, CanSILFunctionType coroutineType);
+
   llvm::Value *emitYield(IRGenFunction &IGF,
                          CanSILFunctionType coroutineType,
                          Explosion &yieldedValues);

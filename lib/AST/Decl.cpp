@@ -1478,12 +1478,17 @@ std::optional<Type> AbstractFunctionDecl::getCachedThrownInterfaceType() const {
 }
 
 std::optional<Type> AbstractFunctionDecl::getEffectiveThrownErrorType() const {
-  // FIXME: Only getters can have thrown error types right now, and DidSet
-  // has a cyclic reference if we try to get its interface type here. Find a
-  // better way to express this.
+  // FIXME: Only getters and yielding coroutine accessors can have thrown error
+  // types right now, and DidSet has a cyclic reference if we try to get its
+  // interface type here. Find a better way to express this.
   if (auto accessor = dyn_cast<AccessorDecl>(this)) {
-    if (accessor->getAccessorKind() != AccessorKind::Get &&
-        accessor->getAccessorKind() != AccessorKind::DistributedGet) {
+    switch (accessor->getAccessorKind()) {
+    case AccessorKind::Get:
+    case AccessorKind::DistributedGet:
+    case AccessorKind::YieldingBorrow:
+    case AccessorKind::YieldingMutate:
+      break;
+    default:
       return std::nullopt;
     }
   }
@@ -3987,6 +3992,11 @@ bool AbstractStorageDecl::requiresOpaqueSetter() const {
   if (!supportsMutation()) {
     return false;
   }
+  // A setter cannot throw, so storage whose 'yielding mutate' throws is only
+  // written through the coroutine.
+  if (getThrowingYieldingAccessor()) {
+    return false;
+  }
   if (getParsedAccessor(AccessorKind::Mutate)) {
     return false;
   }
@@ -4081,13 +4091,21 @@ AccessorDecl *AbstractStorageDecl::getEffectfulGetAccessor() const {
   return nullptr;
 }
 
+AccessorDecl *AbstractStorageDecl::getThrowingYieldingAccessor() const {
+  for (auto kind : {AccessorKind::YieldingBorrow, AccessorKind::YieldingMutate})
+    if (auto *accessor = getAccessor(kind))
+      if (!accessor->isImplicit() && accessor->hasThrows())
+        return accessor;
+  return nullptr;
+}
+
 bool AbstractStorageDecl::isLessEffectfulThan(AbstractStorageDecl const* other,
                                               EffectKind kind) const {
   bool allowedByOther = false;
-  if (auto otherGetter = other->getEffectfulGetAccessor())
+  if (auto otherGetter = other->getEffectfulAccessor())
     allowedByOther = otherGetter->hasEffect(kind);
 
-  if (auto getter = getEffectfulGetAccessor())
+  if (auto getter = getEffectfulAccessor())
     if (getter->hasEffect(kind) && !allowedByOther)
       return false; // has the effect when other does not; it's more effectful!
 

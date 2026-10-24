@@ -209,6 +209,18 @@ void swift::getEdgeArgs(TermInst *T, unsigned edgeIdx, SILBasicBlock *newEdgeBB,
     return;
   }
 
+  case SILInstructionKind::BeginApplyErrorBrInst: {
+    // The normal edge has no arguments; the error edge takes the error.
+    auto *BAEB = cast<BeginApplyErrorBrInst>(T);
+    if (edgeIdx == 0)
+      return;
+    auto *errorBB = BAEB->getErrorBB();
+    args.push_back(newEdgeBB->createPhiArgument(
+        errorBB->getArgument(0)->getType(),
+        errorBB->getArgument(0)->getOwnershipKind()));
+    return;
+  }
+
   case SILInstructionKind::YieldInst:
     // The edges from 'yield' never have branch arguments.
     return;

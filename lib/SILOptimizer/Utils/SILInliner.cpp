@@ -30,6 +30,12 @@
 using namespace swift;
 
 bool SILInliner::canInlineBeginApply(BeginApplyInst *BA) {
+  // Don't inline a coroutine that can throw before it yields. The inliner
+  // would have to route the callee's 'throw' to the begin_apply_error_br's
+  // error successor.
+  if (BA->getSubstCalleeType()->hasErrorResult() && !BA->isNonThrowing())
+    return false;
+
   // Don't inline if we have multiple resumption sites (i.e. end_apply or
   // abort_apply instructions).  The current implementation clones a single
   // copy of the end_apply and abort_apply paths, so it can't handle values
@@ -1395,6 +1401,7 @@ InlineCost swift::instructionInlineCost(SILInstruction &I) {
   case SILInstructionKind::DifferentiabilityWitnessFunctionInst:
   case SILInstructionKind::IncrementProfilerCounterInst:
   case SILInstructionKind::AwaitAsyncContinuationInst:
+  case SILInstructionKind::BeginApplyErrorBrInst:
   case SILInstructionKind::HopToExecutorInst:
   case SILInstructionKind::ExtractExecutorInst:
   case SILInstructionKind::FunctionExtractIsolationInst:

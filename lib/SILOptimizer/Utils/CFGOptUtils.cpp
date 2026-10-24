@@ -418,6 +418,7 @@ bool isSafeNonExitTerminator(TermInst *ti) {
   // potentially-process-terminating things.
   case TermKind::YieldInst:
   case TermKind::AwaitAsyncContinuationInst:
+  case TermKind::BeginApplyErrorBrInst:
     return false;
   case TermKind::TryApplyInst:
     return true;

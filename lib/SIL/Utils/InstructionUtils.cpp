@@ -669,6 +669,9 @@ RuntimeEffect swift::getRuntimeEffect(SILInstruction *inst, SILType &impactType)
   case SILInstructionKind::SpecifyTestInst:
     // Ignore runtime calls of test-only instructions
     return RuntimeEffect::NoEffect;
+  case SILInstructionKind::BeginApplyErrorBrInst:
+    // The coroutine call is accounted for by the begin_apply.
+    return RuntimeEffect::NoEffect;
 
   case SILInstructionKind::GetAsyncContinuationInst:
   case SILInstructionKind::GetAsyncContinuationAddrInst:
