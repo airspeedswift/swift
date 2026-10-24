@@ -3010,6 +3010,27 @@ static CanSILFunctionType getSILFunctionType(
                                 coroutineOrigYieldType, coroutineSubstYieldType,
                                 yields, coroutineKind);
 
+  // A yield-once function (CoroutineFunctions) yields what its formal type
+  // says: a borrow of each non-inout yield, an inout of each inout yield.
+  if (!getAsCoroutineAccessor(constant) && substFnInterfaceType->isCoroutine()) {
+    coroutineKind = TC.Context.SILOpts.CoroutineAccessorsUseYieldOnce2
+                        ? SILCoroutineKind::YieldOnce2
+                        : SILCoroutineKind::YieldOnce;
+    for (auto yield : substFnInterfaceType->getYields()) {
+      CanType yieldTy = yield.getType()->getCanonicalType();
+      AbstractionPattern origYieldTy(genericSig, yieldTy);
+      if (yield.isInOut()) {
+        auto loweredTy = TC.getLoweredType(origYieldTy, yieldTy,
+                                           expansionContext);
+        yields.push_back(SILYieldInfo(loweredTy.getASTType(),
+                                      ParameterConvention::Indirect_Inout));
+      } else {
+        destructureYieldsForReadAccessor(TC, expansionContext, origYieldTy,
+                                         yieldTy, yields);
+      }
+    }
+  }
+
   // Destructure the result tuple type.
   SmallVector<SILResultInfo, 8> results;
   {
