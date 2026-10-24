@@ -4146,6 +4146,16 @@ void AttributeChecker::visitNeverEmitIntoClientAttr(NeverEmitIntoClientAttr *att
 
 void AttributeChecker::visitDiscardableResultAttr(DiscardableResultAttr *attr) {
   if (auto *FD = dyn_cast<FuncDecl>(D)) {
+    // A call to a yield-once function produces its yielded value, which may be
+    // discardable even though the normal result is '()'.
+    if (FD->isCoroutine() && !isa<AccessorDecl>(FD)) {
+      if (auto fnTy = FD->getInterfaceType()->getAs<AnyFunctionType>()) {
+        if (FD->hasImplicitSelfDecl())
+          fnTy = fnTy->getResult()->getAs<AnyFunctionType>();
+        if (fnTy && fnTy->getCoroutineCallValueType())
+          return;
+      }
+    }
     if (auto result = FD->getResultInterfaceType()) {
       auto resultIsVoid = result->isVoid();
       if (resultIsVoid || result->isUninhabited()) {

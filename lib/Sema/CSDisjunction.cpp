@@ -523,9 +523,12 @@ retry_after_fail:
           // all of them are going to be considered and filtered as part of
           // "favored" group after forming a valid partial solution.
           if (auto *choiceFnType = choiceType->getAs<FunctionType>()) {
+            Type choiceResult = choiceFnType->getCoroutineCallValueType();
+            if (!choiceResult)
+              choiceResult = choiceFnType->getResult();
             if (FunctionType::equalParams(argFnType->getParams(),
                                           choiceFnType->getParams()) &&
-                argFnType->getResult()->isEqual(choiceFnType->getResult()))
+                argFnType->getResult()->isEqual(choiceResult))
               constraint->setFavored();
           }
         }
@@ -556,6 +559,10 @@ retry_after_fail:
               choiceResultType = OptionalType::get(choiceResultType);
 
             updateCommonResultType(choiceResultType);
+          } else if (Type callValue =
+                         choiceFnType->getCoroutineCallValueType()) {
+            // A call to a yield-once coroutine produces its yielded value.
+            updateCommonResultType(callValue);
           } else {
             updateCommonResultType(choiceFnType->getResult());
           }
@@ -892,7 +899,10 @@ void SolverDisjunction::pruneDisjunction(ConstraintSystem &cs,
         reason |= checkConversion(cs.CC, argType, paramType, genericSig);
       }
 
-      auto overloadResultType = overloadType->getResult();
+      // A call to a yield-once coroutine produces its yielded value.
+      Type overloadResultType = overloadType->getCoroutineCallValueType();
+      if (!overloadResultType)
+        overloadResultType = overloadType->getResult();
 
       // If the result of the applicable fn is a type variable, consider each
       // potential subtype binding on this type variable. If any of them

@@ -1656,7 +1656,10 @@ static DisjunctionInfo computeDisjunctionInfo(
           if (llvm::any_of(resultTypes, [&](const Type candidateResultTy) {
                 return scoreCandidateMatch(
                            cs, genericSig, decl,
-                           /*paramIdx=*/std::nullopt, overloadType->getResult(),
+                           /*paramIdx=*/std::nullopt,
+                           overloadType->getCoroutineCallValueType()
+                               ? overloadType->getCoroutineCallValueType()
+                               : overloadType->getResult(),
                            candidateResultTy,
                            /*options=*/{}, disjunction->getLocator()) > 0;
               })) {
