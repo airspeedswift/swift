@@ -802,6 +802,15 @@ extension LifetimeDependenceDefUseWalker {
 extension LifetimeDependenceDefUseWalker {
   mutating func walkDown(dependence: LifetimeDependence) -> WalkResult {
     if let mdAddr = dependence.markDepInst as? MarkDependenceAddrInst {
+      // The contents of a coroutine's indirect, non-inout yield depend on the coroutine (an address-only ~Escapable
+      // yield, e.g. of a library-evolution type). Every load or copy out of the yielded address is a dependent value:
+      // walk the address's uses. (visitStoredUses would treat this as a store *into* a yielded inout address.)
+      if let yield = mdAddr.address as? MultipleValueInstructionResult,
+         let beginApply = yield.parentInstruction as? BeginApplyInst,
+         beginApply.yieldedValues.contains(where: { $0 == yield }),
+         !beginApply.convention(of: yield).isInout {
+        return walkDownAddressUses(of: yield)
+      }
       // All reachable uses of the dependent address are dependent uses. Treat the mark_dependence_addr base operand as
       // if it was a store's address operand. Diagnostics will consider this the point of variable initialization.
       return visitStoredUses(of: mdAddr.baseOperand, into: mdAddr.address)
