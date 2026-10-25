@@ -219,9 +219,14 @@ namespace irgen {
                               CanSILFunctionType coroutineType,
                               NativeCCEntryPointArgumentEmission &emission);
 
+  /// Allocate the static frame of a callee-allocated coroutine. With
+  /// \p onNativeStack in an async function, the frame is a native stack
+  /// allocation kept out of the async frame; the caller must have shown that
+  /// no suspension point is reached before it is deallocated.
   StackAddress emitAllocYieldOnce2CoroutineFrame(IRGenFunction &IGF,
                                                  llvm::Value *size,
-                                                 llvm::Value *mallocTypeId);
+                                                 llvm::Value *mallocTypeId,
+                                                 bool onNativeStack = false);
   void emitDeallocYieldOnce2CoroutineFrame(IRGenFunction &IGF,
                                            StackAddress allocation);
   void
@@ -253,7 +258,8 @@ namespace irgen {
                               unsigned asyncContextIndex);
 
   StackAddress emitAllocCoroStaticFrame(IRGenFunction &IGF, llvm::Value *size,
-                                        llvm::Value *mallocTypeId);
+                                        llvm::Value *mallocTypeId,
+                                        bool onNativeStack = false);
   void emitDeallocCoroStaticFrame(IRGenFunction &IGF, StackAddress frame);
 
   /// Yield the given values from the current continuation.

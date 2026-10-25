@@ -959,7 +959,12 @@ DECL_ATTR(callable, Callable,
   181)
 DECL_ATTR_FEATURE_REQUIREMENT(Callable, OnceFunctions)
 
-LAST_DECL_ATTR(Callable)
+SIMPLE_DECL_ATTR(_noSuspendingAccess, NoSuspendingAccess,
+  OnVar | OnSubscript | OnFunc,
+  ABIStableToAdd | ABIStableToRemove | APIBreakingToAdd | APIStableToRemove | EquivalentInABIAttr,
+  182)
+
+LAST_DECL_ATTR(NoSuspendingAccess)
 
 #undef DECL_ATTR_ALIAS
 #undef CONTEXTUAL_DECL_ATTR_ALIAS

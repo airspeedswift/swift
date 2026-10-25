@@ -3529,6 +3529,13 @@ public:
     LazySemanticInfo.isIUO = isIUO;
   }
 
+  /// Whether an access to this declaration (a yielding accessor of a property
+  /// or subscript, or a call to a yield-once function) may not be held across
+  /// a suspension point: it has '@_noSuspendingAccess', or a declaration it
+  /// overrides or a protocol requirement it witnesses has it. If \p from is
+  /// non-null, it is set to the declaration that carries the attribute.
+  bool hasNoSuspendingAccess(const ValueDecl **from = nullptr) const;
+
   /// Returns the protocol requirements that this decl conforms to.
   ///
   /// \param NTD If specified, the nominal to use for conformance lookup. This

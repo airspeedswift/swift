@@ -178,6 +178,8 @@ static void addMandatoryDiagnosticOptPipeline(SILPassPipelinePlan &P) {
   if (P.getOptions().EnableLifetimeDependenceDiagnostics) {
     P.addLifetimeDependenceDiagnostics();
   }
+  // After scope fixup placed the end of every coroutine access.
+  P.addDiagnoseSuspendingAccess();
 
   // As a temporary measure, we also eliminate move only for non-trivial types
   // until we can audit the later part of the pipeline. Eventually, this should

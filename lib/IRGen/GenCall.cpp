@@ -2947,15 +2947,20 @@ public:
 
     if (IsCalleeAllocatedCoroutine) {
       auto kind = IGF.getDefaultCoroutineAllocatorKind();
+      // An async caller needs the task allocator only if the coroutine is
+      // suspended across a suspension point of the caller. Otherwise keep the
+      // frame, and whatever the callee allocates, on the native stack.
+      bool onNativeStack = IGF.isAsync() && CoroutineAccessDoesNotSuspend;
+      if (onNativeStack)
+        kind = IGF.IGM.SwiftCoroCC == llvm::CallingConv::SwiftCoro
+                   ? CoroAllocatorKind::Stack
+                   : CoroAllocatorKind::Malloc;
       llvm::Value *bufferSize32, *mallocTypeId;
       std::tie(calleeFunction, bufferSize32, mallocTypeId) =
           getCoroFunctionValues(IGF, CurCallee.getFunctionPointer());
       auto *bufferSize = IGF.Builder.CreateZExt(bufferSize32, IGF.IGM.SizeTy);
-      coroStaticFrame =
-          emitAllocYieldOnce2CoroutineFrame(IGF, bufferSize, mallocTypeId);
-      // TODO: CoroutineAccessors: Optimize allocator kind (e.g. async callers
-      //                           only need to use the TaskAllocator if the
-      //                           coroutine is suspended across an await).
+      coroStaticFrame = emitAllocYieldOnce2CoroutineFrame(
+          IGF, bufferSize, mallocTypeId, onNativeStack);
       coroAllocator = emitYieldOnce2CoroutineAllocator(IGF, kind);
     }
   }
@@ -5418,8 +5423,9 @@ Address irgen::emitAllocYieldManyCoroutineBuffer(IRGenFunction &IGF) {
 
 StackAddress
 irgen::emitAllocYieldOnce2CoroutineFrame(IRGenFunction &IGF, llvm::Value *size,
-                                         llvm::Value *mallocTypeId) {
-  return emitAllocCoroStaticFrame(IGF, size, mallocTypeId);
+                                         llvm::Value *mallocTypeId,
+                                         bool onNativeStack) {
+  return emitAllocCoroStaticFrame(IGF, size, mallocTypeId, onNativeStack);
 }
 
 void irgen::emitDeallocYieldOnceCoroutineBuffer(IRGenFunction &IGF,
@@ -5469,14 +5475,27 @@ void irgen::emitStaticDeallocAsyncContext(IRGenFunction &IGF, Address context,
 
 StackAddress irgen::emitAllocCoroStaticFrame(IRGenFunction &IGF,
                                              llvm::Value *size,
-                                             llvm::Value *mallocTypeId) {
+                                             llvm::Value *mallocTypeId,
+                                             bool onNativeStack) {
   ASSERT(mallocTypeId);
-  // TODO: Avoid swift_task_alloc (async) and malloc (yield_once) if the
-  //       suspension doesn't span an apply of an async function or a yield
-  //       respectively.
-  auto retval =
-      IGF.emitDynamicAlloca(IGF.IGM.Int8Ty, size, Alignment(MaximumAlignment),
-                            AllowsTaskAlloc, mallocTypeId, "callee-coro-frame");
+  // TODO: Avoid malloc (yield_once) if the suspension doesn't span a yield.
+  bool nativeInAsync = onNativeStack && IGF.isAsync();
+  auto retval = IGF.emitDynamicAlloca(
+      IGF.IGM.Int8Ty, size, Alignment(MaximumAlignment),
+      nativeInAsync ? DoesNotAllowTaskAlloc : AllowsTaskAlloc, mallocTypeId,
+      "callee-coro-frame");
+  // In an async function this is an llvm.coro.alloca.alloc: CoroSplit lowers
+  // it to a native dynamic alloca in the partial function that uses it, since
+  // it is not live across a suspension point (and it cannot lower one that
+  // is, so a wrong SIL-level decision fails to compile rather than
+  // miscompiling). Elsewhere it is a dynamic alloca. Mark a plain alloca so
+  // that CoroSplit does not move it into the async context.
+  if (nativeInAsync) {
+    if (auto *alloca = dyn_cast<llvm::AllocaInst>(
+            retval.getAddress().getAddress()->stripPointerCasts()))
+      alloca->setMetadata(llvm::LLVMContext::MD_coro_outside_frame,
+                          llvm::MDNode::get(IGF.IGM.getLLVMContext(), {}));
+  }
   IGF.Builder.CreateLifetimeStart(retval.getAddress(),
                                   Size(-1) /*dynamic size*/);
   return retval;

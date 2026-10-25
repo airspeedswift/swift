@@ -87,6 +87,8 @@ PASS(ComputeSideEffects, "compute-side-effects",
      "Computes function side effects")
 PASS(CondFailOptimization, "cond-fail-optimization",
      "Optimizes cond_fail instructions")
+LEGACY_PASS(DiagnoseSuspendingAccess, "diagnose-suspending-access",
+     "Diagnose @_noSuspendingAccess accesses held across a suspension point")
 PASS(DiagnoseInfiniteRecursion, "diagnose-infinite-recursion",
      "Diagnose Infinitely-Recursive Code")
 PASS(ImplicitDestroyChecker, "implicit-destroy-checker",

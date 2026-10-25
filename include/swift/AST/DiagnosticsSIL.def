@@ -1387,6 +1387,20 @@ ERROR(executor_factory_must_conform, none,
 ERROR(deinit_not_visible, none,
       "deinit of non-'Copyable' type %0 not visible in the current module", (Type))
 
+ERROR(no_suspending_access_resilient, none,
+      "access to %0 from an async function cannot keep its coroutine frame on the stack: "
+      "the access uses the yield-once ABI with a fixed-size buffer (e.g. across a library-evolution boundary)",
+      (const ValueDecl *))
+NOTE(no_suspending_access_resilient_note, none,
+     "'@_noSuspendingAccess' is only supported with the callee-allocated coroutine ABI for now", ())
+ERROR(no_suspending_access_across_suspension, none,
+      "access to %0 cannot be held across 'await'", (const ValueDecl *))
+NOTE(no_suspending_access_suspension_point, none,
+     "the access is still in progress at this suspension point", ())
+NOTE(no_suspending_access_declared_here, none,
+     "%0 inherits '@_noSuspendingAccess' from %select{the overridden declaration|this protocol requirement}1",
+     (const ValueDecl *, bool))
+
 ERROR(lifetime_variable_outside_scope, none,
       "lifetime-dependent variable '%0' escapes its scope", (Identifier))
 ERROR(lifetime_value_outside_scope, none,

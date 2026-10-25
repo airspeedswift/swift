@@ -1841,6 +1841,7 @@ namespace  {
     UNINTERESTING_ATTR(Safe)
     UNINTERESTING_ATTR(AddressableForDependencies)
     UNINTERESTING_ATTR(UnsafeSelfDependentResult)
+    UNINTERESTING_ATTR(NoSuspendingAccess)
     UNINTERESTING_ATTR(Diagnose)
 #undef UNINTERESTING_ATTR
 

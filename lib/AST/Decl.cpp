@@ -14372,3 +14372,25 @@ HiddenTypeLayoutInfoDecl *HiddenTypeLayoutInfoDecl::create(ASTContext &ctx,
                                                            DeclContext *DC) {
   return new (ctx) HiddenTypeLayoutInfoDecl(DC);
 }
+
+bool ValueDecl::hasNoSuspendingAccess(const ValueDecl **from) const {
+  // The rule lives here, so that its spelling and inheritance can change in
+  // one place: the attribute on the declaration, on any declaration it
+  // overrides, or on a protocol requirement it witnesses.
+  if (getAttrs().hasAttribute<NoSuspendingAccessAttr>()) {
+    if (from)
+      *from = this;
+    return true;
+  }
+  if (auto *overridden = getOverriddenDecl())
+    if (overridden->hasNoSuspendingAccess(from))
+      return true;
+  if (isa<ProtocolDecl>(getDeclContext()))
+    return false;
+  if (!getDeclContext()->getSelfNominalTypeDecl())
+    return false;
+  for (auto *requirement : getSatisfiedProtocolRequirements())
+    if (requirement->hasNoSuspendingAccess(from))
+      return true;
+  return false;
+}

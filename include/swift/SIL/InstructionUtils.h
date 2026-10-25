@@ -20,6 +20,9 @@
 
 namespace swift {
 
+class DiagnosticEngine;
+class ValueDecl;
+
 //===----------------------------------------------------------------------===//
 //                         SSA Use-Def Helpers
 //===----------------------------------------------------------------------===//
@@ -268,6 +271,46 @@ bool shouldExpand(SILModule &module, SILType ty);
 /// For historical reasons this utility is implemented in SILVerifier.cpp.
 bool isIndirectArgumentMutated(SILFunctionArgument *arg, bool ignoreDestroys = false,
                                bool defaultIsMutating = false);
+
+/// True if \p inst may suspend the async function containing it: an apply of
+/// an async function, `hop_to_executor`, `await_async_continuation`, and
+/// (conservatively) `get_async_continuation[_addr]`.
+bool isAsyncSuspensionPoint(SILInstruction *inst);
+
+/// Return an instruction that may suspend the async function during the
+/// coroutine access begun by \p bai, or nullptr if there is none.
+///
+/// The access extends from the begin_apply to the end of its token
+/// (`end_apply`, `abort_apply`, `end_borrow`) and, for a callee-allocated
+/// coroutine, to the `dealloc_stack` of its frame, which may come later. Paths
+/// that never reach an end (dead ends) are searched to their end.
+SILInstruction *findSuspensionInCoroutineAccess(BeginApplyInst *bai);
+
+/// Return an instruction that may suspend the async function while the stack
+/// allocation \p asi is live (up to its dealloc_stack), or nullptr.
+SILInstruction *findSuspensionInStackAllocation(AllocStackInst *asi);
+
+/// Return a suspension point reachable from \p begin before an instruction in
+/// \p ends, or nullptr. Paths that reach no end are searched to their end.
+SILInstruction *
+findSuspensionBefore(SILInstruction *begin,
+                     const llvm::SmallPtrSetImpl<SILInstruction *> &ends);
+
+/// The property, subscript or yield-once function a begin_apply accesses, if
+/// it can be identified.
+const ValueDecl *getAccessedDecl(BeginApplyInst *bai);
+
+/// The declaration accessed by \p bai, if it (or what it inherits from) is
+/// '@_noSuspendingAccess'. \p from receives the declaration with the
+/// attribute. The inheritance rule is ValueDecl::hasNoSuspendingAccess.
+const ValueDecl *getNoSuspendingAccessDecl(BeginApplyInst *bai,
+                                           const ValueDecl **from = nullptr);
+
+/// "access to 'x' cannot be held across 'await'", at \p bai, with a note at
+/// \p suspension. Used by the DiagnoseSuspendingAccess pass and by IRGen.
+void diagnoseSuspendingAccess(DiagnosticEngine &diags, BeginApplyInst *bai,
+                              const ValueDecl *decl, const ValueDecl *from,
+                              SILInstruction *suspension);
 
 } // end namespace swift
 

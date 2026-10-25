@@ -35,6 +35,7 @@
 #include "swift/IRGen/GenericRequirement.h"
 #include "swift/IRGen/Linking.h"
 #include "swift/SIL/ApplySite.h"
+#include "swift/SIL/InstructionUtils.h"
 #include "swift/SIL/BasicBlockDatastructures.h"
 #include "swift/SIL/BasicBlockUtils.h"
 #include "swift/SIL/Dominance.h"
@@ -114,6 +115,14 @@
 
 using namespace swift;
 using namespace irgen;
+
+/// Keep stack allocations and callee-allocated coroutine frames of async
+/// functions on the native stack when no suspension point is reached while
+/// they are allocated.
+static llvm::cl::opt<bool> IRGenAsyncNativeStack(
+    "irgen-async-native-stack", llvm::cl::init(true),
+    llvm::cl::desc("Keep non-suspending stack allocations of async functions "
+                   "on the native stack"));
 
 namespace {
 
@@ -1290,6 +1299,8 @@ public:
                                     const DebugTypeInfo &DbgTy,
                                     llvm::Value *addr);
   void visitAllocStackInst(AllocStackInst *i);
+  void keepAllocationOnNativeStackIfNotSuspended(AllocStackInst *i,
+                                                 Address addr);
   void visitAllocPackInst(AllocPackInst *i);
   void visitAllocPackMetadataInst(AllocPackMetadataInst *i);
   void visitAllocRefInst(AllocRefInst *i);
@@ -4155,6 +4166,26 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
     emission->setIndirectReturnAddress(getLoweredAddress(site.getIndirectSILResults()[0]));
   }
 
+  // An async caller keeps a coroutine's frame on the native stack if no
+  // suspension point is reached while it is allocated. For a
+  // '@_noSuspendingAccess' declaration that is guaranteed: DiagnoseSuspendingAccess
+  // rejected any access held across a suspension point.
+  bool coroutineAccessDoesNotSuspend = false;
+  if (auto *bai = dyn_cast<BeginApplyInst>(site.getInstruction())) {
+    if (isAsync() && IRGenAsyncNativeStack) {
+      if (auto *suspension = findSuspensionInCoroutineAccess(bai)) {
+        const ValueDecl *from = nullptr;
+        if (auto *decl = getNoSuspendingAccessDecl(bai, &from))
+          diagnoseSuspendingAccess(IGM.Context.Diags, bai, decl, from,
+                                   suspension);
+      } else {
+        coroutineAccessDoesNotSuspend = true;
+        if (bai->isCalleeAllocated())
+          emission->setCoroutineAccessDoesNotSuspend();
+      }
+    }
+  }
+
   emission->begin();
 
   auto &calleeFP = emission->getCallee().getFunctionPointer();
@@ -4177,6 +4208,15 @@ void IRGenSILFunction::visitFullApplySite(FullApplySite site) {
   }
   case SILCoroutineKind::YieldOnce:
     coroutineBuffer = emitAllocYieldOnceCoroutineBuffer(*this);
+    if (coroutineAccessDoesNotSuspend) {
+      // Keep the fixed-size buffer out of the async context (see
+      // keepAllocationOnNativeStackIfNotSuspended). The callee still allocates
+      // a frame that does not fit with malloc.
+      if (auto *alloca = dyn_cast<llvm::AllocaInst>(
+              coroutineBuffer->getAddress()->stripPointerCasts()))
+        alloca->setMetadata(llvm::LLVMContext::MD_coro_outside_frame,
+                            llvm::MDNode::get(IGM.getLLVMContext(), {}));
+    }
     coroImpl = {CoroutineState::HeapAllocated{*coroutineBuffer}};
     break;
 
@@ -7098,6 +7138,26 @@ void IRGenSILFunction::emitDebugInfoAfterAllocStack(AllocStackInst *i,
   }
 }
 
+/// In an async function, CoroSplit moves every alloca whose address escapes
+/// into the async context (it does not use lifetime markers for the async ABI),
+/// which is allocated with the task allocator. A fixed-size stack allocation
+/// that is not live across a suspension point can stay on the native stack of
+/// the partial function it is used in: mark it so. CoroSplit gives each partial
+/// function its own copy of such an alloca.
+void IRGenSILFunction::keepAllocationOnNativeStackIfNotSuspended(
+    AllocStackInst *i, Address addr) {
+  if (!isAsync() || !IRGenAsyncNativeStack || !addr.isValid())
+    return;
+  auto *alloca = dyn_cast<llvm::AllocaInst>(
+      addr.getAddress()->stripPointerCasts());
+  if (!alloca || !alloca->isStaticAlloca())
+    return;
+  if (findSuspensionInStackAllocation(i))
+    return;
+  alloca->setMetadata(llvm::LLVMContext::MD_coro_outside_frame,
+                      llvm::MDNode::get(IGM.getLLVMContext(), {}));
+}
+
 void IRGenSILFunction::visitAllocStackInst(swift::AllocStackInst *i) {
   const TypeInfo &type = getTypeInfo(i->getElementType());
   // Derive name from SIL location.
@@ -7116,6 +7176,7 @@ void IRGenSILFunction::visitAllocStackInst(swift::AllocStackInst *i) {
                                       i->isStackAllocationNested());
   setLoweredStackAddress(i, stackAddr);
   Address addr = stackAddr.getAddress();
+  keepAllocationOnNativeStackIfNotSuspended(i, addr);
 
   // Generate Debug Info.
   if (!i->getVarInfo())

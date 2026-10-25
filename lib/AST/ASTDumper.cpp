@@ -5241,6 +5241,7 @@ public:
   TRIVIAL_ATTR_PRINTER(WeakLinked, weak_linked)
   TRIVIAL_ATTR_PRINTER(Nonexhaustive, nonexhaustive)
   TRIVIAL_ATTR_PRINTER(Concurrent, concurrent)
+  TRIVIAL_ATTR_PRINTER(NoSuspendingAccess, no_suspending_access)
   TRIVIAL_ATTR_PRINTER(UnsafeSelfDependentResult, unsafe_self_dependent_result)
 
 #undef TRIVIAL_ATTR_PRINTER

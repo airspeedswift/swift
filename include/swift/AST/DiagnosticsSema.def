@@ -8036,6 +8036,9 @@ ERROR(unavailability_query_wildcard_not_required, none,
 // MARK: @discardableResult
 //------------------------------------------------------------------------------
 
+ERROR(no_suspending_access_not_coroutine, none,
+      "'@_noSuspendingAccess' applies to the property or subscript, not to its accessor", ())
+
 WARNING(discardable_result_on_void_never_function, none,
         "'@discardableResult' declared on a function returning "
         "'%select{Never|Void}0' "

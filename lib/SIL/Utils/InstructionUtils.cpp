@@ -13,6 +13,8 @@
 #include "swift/SIL/SILInstruction.h"
 #define DEBUG_TYPE "sil-inst-utils"
 #include "swift/SIL/InstructionUtils.h"
+#include "swift/SIL/ApplySite.h"
+#include "swift/AST/DiagnosticsSIL.h"
 #include "swift/SIL/MemAccessUtils.h"
 #include "swift/AST/SubstitutionMap.h"
 #include "swift/AST/ProtocolConformance.h"
@@ -1523,3 +1525,116 @@ bool swift::shouldExpand(SILModule &module, SILType ty) {
   unsigned numFields = module.Types.countNumberOfFields(ty, expansion);
   return (numFields <= MaxNumFieldsToExpand);
 }
+
+bool swift::isAsyncSuspensionPoint(SILInstruction *inst) {
+  if (auto site = FullApplySite::isa(inst))
+    return site.getOrigCalleeType()->isAsync();
+  return isa<HopToExecutorInst>(inst) || isa<AwaitAsyncContinuationInst>(inst) ||
+         isa<GetAsyncContinuationInst>(inst) ||
+         isa<GetAsyncContinuationAddrInst>(inst);
+}
+
+SILInstruction *swift::findSuspensionInCoroutineAccess(BeginApplyInst *bai) {
+  // The instructions that end the access. With a callee-allocated frame, the
+  // access ends at the frame's deallocation, which follows the token's end.
+  llvm::SmallPtrSet<SILInstruction *, 4> ends;
+  if (auto *allocation = bai->getCalleeAllocationResult()) {
+    for (auto *use : allocation->getUses())
+      if (isa<DeallocStackInst>(use->getUser()))
+        ends.insert(use->getUser());
+  }
+  if (ends.empty()) {
+    for (auto *use : bai->getTokenResult()->getUses()) {
+      auto *user = use->getUser();
+      if (isa<EndApplyInst>(user) || isa<AbortApplyInst>(user) ||
+          isa<EndBorrowInst>(user))
+        ends.insert(user);
+    }
+  }
+
+  return findSuspensionBefore(bai, ends);
+}
+
+SILInstruction *swift::findSuspensionInStackAllocation(AllocStackInst *asi) {
+  llvm::SmallPtrSet<SILInstruction *, 4> ends;
+  for (auto *use : asi->getUses())
+    if (isa<DeallocStackInst>(use->getUser()))
+      ends.insert(use->getUser());
+  return findSuspensionBefore(asi, ends);
+}
+
+SILInstruction *swift::findSuspensionBefore(
+    SILInstruction *begin,
+    const llvm::SmallPtrSetImpl<SILInstruction *> &ends) {
+  // Scan forward from `begin`. A block whose scan stopped at an end
+  // contributes no successors. Prefer a suspension point with a source
+  // location (an `await`) to an implicit one (a hop back to the executor), so
+  // that diagnostics can point at it.
+  llvm::SmallPtrSet<SILBasicBlock *, 16> visited;
+  SmallVector<SILBasicBlock *, 16> worklist;
+  SILInstruction *firstFound = nullptr;
+  auto scanFrom = [&](SILBasicBlock::iterator it,
+                      SILBasicBlock *block) -> SILInstruction * {
+    for (auto end = block->end(); it != end; ++it) {
+      if (ends.count(&*it))
+        return nullptr;
+      if (isAsyncSuspensionPoint(&*it)) {
+        if (it->getLoc().getSourceLoc().isValid())
+          return &*it;
+        if (!firstFound)
+          firstFound = &*it;
+      }
+    }
+    for (auto *succ : block->getSuccessorBlocks())
+      if (visited.insert(succ).second)
+        worklist.push_back(succ);
+    return nullptr;
+  };
+  if (auto *found = scanFrom(std::next(begin->getIterator()), begin->getParent()))
+    return found;
+  while (!worklist.empty()) {
+    auto *block = worklist.pop_back_val();
+    if (auto *found = scanFrom(block->begin(), block))
+      return found;
+  }
+  return firstFound;
+}
+
+const ValueDecl *swift::getAccessedDecl(BeginApplyInst *bai) {
+  SILDeclRef ref;
+  SILValue callee = bai->getCallee();
+  if (auto *fri = dyn_cast<FunctionRefBaseInst>(callee)) {
+    ref = fri->getInitiallyReferencedFunction()->getDeclRef();
+  } else if (auto *method = dyn_cast<MethodInst>(callee)) {
+    ref = method->getMember();
+  }
+  if (!ref || !ref.hasDecl())
+    return nullptr;
+  auto *decl = ref.getDecl();
+  if (auto *accessor = dyn_cast<AccessorDecl>(decl))
+    return accessor->getStorage();
+  return decl;
+}
+
+const ValueDecl *swift::getNoSuspendingAccessDecl(BeginApplyInst *bai,
+                                                  const ValueDecl **from) {
+  auto *decl = getAccessedDecl(bai);
+  if (decl && decl->hasNoSuspendingAccess(from))
+    return decl;
+  return nullptr;
+}
+
+void swift::diagnoseSuspendingAccess(DiagnosticEngine &diags,
+                                     BeginApplyInst *bai, const ValueDecl *decl,
+                                     const ValueDecl *from,
+                                     SILInstruction *suspension) {
+  diags.diagnose(bai->getLoc().getSourceLoc(),
+                 diag::no_suspending_access_across_suspension, decl);
+  auto suspensionLoc = suspension->getLoc().getSourceLoc();
+  if (suspensionLoc.isValid())
+    diags.diagnose(suspensionLoc, diag::no_suspending_access_suspension_point);
+  if (from && from != decl)
+    diags.diagnose(from->getLoc(), diag::no_suspending_access_declared_here,
+                   decl, isa<ProtocolDecl>(from->getDeclContext()));
+}
+

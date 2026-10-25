@@ -16,6 +16,7 @@ target_sources(swiftSILOptimizer PRIVATE
   DiagnoseInvalidEscapingCaptures.cpp
   DiagnoseLifetimeIssues.cpp
   DiagnoseStaticExclusivity.cpp
+  DiagnoseSuspendingAccess.cpp
   DiagnoseUnreachable.cpp
   Differentiation.cpp
   FlowIsolation.cpp

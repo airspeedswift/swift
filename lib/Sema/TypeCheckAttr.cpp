@@ -479,6 +479,7 @@ public:
   void visitExportAttr(ExportAttr *attr);
 
   void visitDiscardableResultAttr(DiscardableResultAttr *attr);
+  void visitNoSuspendingAccessAttr(NoSuspendingAccessAttr *attr);
   void visitDynamicReplacementAttr(DynamicReplacementAttr *attr);
   void visitTypeEraserAttr(TypeEraserAttr *attr);
   void visitStorageRestrictionsAttr(StorageRestrictionsAttr *attr);
@@ -4142,6 +4143,16 @@ void AttributeChecker::visitNeverEmitIntoClientAttr(NeverEmitIntoClientAttr *att
   Ctx.Diags.diagnose(attr->getStartLoc(), diag::attr_renamed_warning,
                      "_neverEmitIntoClient", "export(interface)")
     .fixItReplace(attr->getRangeWithAt(), "@export(interface)");
+}
+
+void AttributeChecker::visitNoSuspendingAccessAttr(NoSuspendingAccessAttr *attr) {
+  // A property or subscript (it constrains its yielding accessors), a
+  // yield-once function, or any other function: a call to an ordinary function
+  // cannot be held across a suspension point, so there it holds trivially and
+  // lets an API mark all of its stack-rooting entry points the same way. On an
+  // accessor it would be easy to believe it applies; it belongs on the storage.
+  if (isa<AccessorDecl>(D))
+    diagnoseAndRemoveAttr(attr, diag::no_suspending_access_not_coroutine);
 }
 
 void AttributeChecker::visitDiscardableResultAttr(DiscardableResultAttr *attr) {

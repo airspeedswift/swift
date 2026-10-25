@@ -76,6 +76,11 @@ protected:
   /// in the callee.
   bool IsCalleeAllocatedCoroutine;
 
+  /// For a callee-allocated coroutine called from an async function: no
+  /// suspension point of the caller is reached while the coroutine's frame is
+  /// allocated, so the frame can live on the native stack.
+  bool CoroutineAccessDoesNotSuspend = false;
+
   /// Whether we've emitted the call for the current callee yet.  This
   /// is just for debugging purposes --- e.g. the destructor asserts
   /// that it's true --- but is otherwise derivable from
@@ -156,6 +161,9 @@ public:
   void addFnAttribute(llvm::Attribute::AttrKind kind);
 
   void setIndirectReturnAddress(Address addr) { indirectReturnAddress = addr; }
+  void setCoroutineAccessDoesNotSuspend() {
+    CoroutineAccessDoesNotSuspend = true;
+  }
 
   void addParamAttribute(unsigned paramIndex, llvm::Attribute::AttrKind kind);
   void addParamAttribute(unsigned paramIndex, llvm::Attribute attr);
