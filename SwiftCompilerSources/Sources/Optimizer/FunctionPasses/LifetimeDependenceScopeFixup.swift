@@ -106,6 +106,19 @@ let lifetimeDependenceScopeFixupPass = FunctionPass(
 
   let localReachabilityCache = LocalVariableReachabilityCache()
 
+  // Non-lexical ~Escapable variables: their destroys do not extend the scopes they depend on, and they end at their
+  // last use once all scopes are extended.
+  // A variable can itself be the base of a dependence (`derive(view)` borrows `view`; a yielding accessor on a
+  // variable borrows it). Scope fixup cannot extend a variable, so both the scopes it depends on and its own new end
+  // cover those dependent uses (see dependentUses(of:)).
+  let variables = function.instructions.compactMap { $0 as? MoveValueInst }.filter { isShrinkableVariable($0) }
+  let shrinkable = Set(variables.map { ObjectIdentifier($0) })
+  for variable in variables {
+    for borrow in variable.uses.compactMap({ $0.instruction as? BeginBorrowInst }) {
+      shrinkTrivialProjectionBorrow(borrow, context)
+    }
+  }
+
   var mustFixStackNesting = false
   for instruction in function.instructions {
     guard let markDep = instruction as? MarkDependenceInstruction else {
@@ -120,6 +133,14 @@ let lifetimeDependenceScopeFixupPass = FunctionPass(
     // Recursively sink enclosing end_access, end_borrow, end_apply, and destroy_value. If the scope can be extended
     // into the caller, return the function arguments that are the dependency sources.
     var scopeExtension = ScopeExtension(localReachabilityCache, context)
+    if !variables.isEmpty {
+      scopeExtension.ignoredDestroyUses = { destroy in
+        guard shrinkable.contains(ObjectIdentifier(destroy.destroyedValue)) else {
+          return nil
+        }
+        return dependentUses(of: destroy.destroyedValue, substituting: shrinkable, localReachabilityCache, context)
+      }
+    }
     guard scopeExtension.extendScopes(dependence: newLifetimeDep) else {
       continue
     }
@@ -137,6 +158,200 @@ let lifetimeDependenceScopeFixupPass = FunctionPass(
   }
   if mustFixStackNesting {
     context.fixStackNesting(in: function)
+  }
+  // Dependents first: a variable's end covers the uses of the variables that depend on it.
+  for variable in variables.reversed() {
+    shrinkToLastUse(variable, localReachabilityCache, context)
+  }
+}
+
+/// A `let` (or `guard let`) of a ~Escapable, copyable type: `move_value [var_decl]`, not lexical, of a
+/// lifetime-dependent value (a copy of a yield, a call result, an optional payload). SILGen destroys it at the end of its lexical scope, and
+/// scope fixup would extend the scope it depends on (an access, a borrow, a coroutine) to that destroy. A ~Escapable
+/// variable has no lexical lifetime, so OSSA canonicalization would later shorten it to its last use anyway; doing it
+/// first ends the scope at the last use too. That matters for a coroutine in an async function: a scope that ends
+/// before the next `await` lets the coroutine frame stay on the stack, and is required for `@_noSuspendingAccess`.
+private func isShrinkableVariable(_ mv: MoveValueInst) -> Bool {
+  let function = mv.parentFunction
+  guard mv.isFromVarDecl, !mv.isLexical, mv.ownership == .owned, !mv.type.isEscapable(in: function),
+        !mv.type.isMoveOnly else {
+    return false
+  }
+  // Dead-end destroys (on paths to `unreachable`, e.g. after a throw) are replaced too: the new boundary ends the
+  // variable on those paths as well.
+  let ending = mv.uses.endingLifetime
+  return !ending.isEmpty && ending.allSatisfy({ $0.instruction is DestroyValueInst })
+}
+
+/// SILGen ends the borrow of a variable for `v.x` at the end of the enclosing expression, e.g. after the `await` in
+/// `return v.x + (await f())`. When the borrow only produces trivial values in its own block, end it right after its
+/// last use.
+private func shrinkTrivialProjectionBorrow(_ borrow: BeginBorrowInst, _ context: FunctionPassContext) {
+  guard !borrow.isLexical, !borrow.isFromVarDecl else {
+    return
+  }
+  let block = borrow.parentBlock
+  let function = borrow.parentFunction
+  var endBorrow: EndBorrowInst? = nil
+  var users = InstructionSet(context)
+  defer { users.deinitialize() }
+  for use in borrow.uses {
+    let user = use.instruction
+    if let end = user as? EndBorrowInst {
+      if endBorrow != nil || end.parentBlock != block {
+        return
+      }
+      endBorrow = end
+      continue
+    }
+    guard user.parentBlock == block, !(user is TermInst),
+          user.results.allSatisfy({ $0.type.isTrivial(in: function) }) else {
+      return
+    }
+    users.insert(user)
+  }
+  guard let endBorrow else {
+    return
+  }
+  // Scan forward: the last user before the end_borrow.
+  var lastUse: Instruction = borrow
+  var inst = borrow.next
+  while let i = inst, i != endBorrow {
+    if users.contains(i) {
+      lastUse = i
+    }
+    inst = i.next
+  }
+  guard inst == endBorrow, lastUse.next != endBorrow else {
+    return
+  }
+  Builder(after: lastUse, location: endBorrow.location, context).createEndBorrow(of: borrow)
+  context.erase(instruction: endBorrow)
+}
+
+/// The `mark_dependence`s whose base is `variable`, directly or through a borrow or copy of it.
+private func dependentMarks(of variable: Value) -> [MarkDependenceInstruction] {
+  var result = [MarkDependenceInstruction]()
+  var worklist = [variable]
+  var visited = Set<ObjectIdentifier>()
+  while let value = worklist.popLast() {
+    guard visited.insert(ObjectIdentifier(value)).inserted else {
+      continue
+    }
+    for use in value.uses {
+      switch use.instruction {
+      case let markDep as MarkDependenceInstruction where use == markDep.baseOperand:
+        result.append(markDep)
+      case let borrow as BeginBorrowInst:
+        worklist.append(borrow)
+      case let copy as CopyValueInst:
+        worklist.append(copy)
+      default:
+        break
+      }
+    }
+  }
+  return result
+}
+
+/// The definition of `variable` and the uses of the values that depend on it (the dependent uses of the
+/// `mark_dependence`s based on it), or nil if they cannot be determined. With `substituting`, the destroy of another
+/// such variable is replaced by its own definition and dependent uses, recursively: used while scopes are extended,
+/// before the variables are shrunk. Without, destroys are kept: used when shrinking, dependents first.
+private func dependentUses(of variable: Value, substituting shrinkable: Set<ObjectIdentifier>?,
+                           _ localReachabilityCache: LocalVariableReachabilityCache,
+                           _ context: FunctionPassContext) -> [Instruction]? {
+  final class Collector {
+    var instructions = [Instruction]()
+    var visited = Set<ObjectIdentifier>()
+    var failed = false
+  }
+  let collector = Collector()
+  func visit(_ value: Value) {
+    guard collector.visited.insert(ObjectIdentifier(value)).inserted else {
+      return
+    }
+    if let definition = value.definingInstruction {
+      collector.instructions.append(definition)
+    }
+    for markDep in dependentMarks(of: value) {
+      guard let dependence = LifetimeDependence(markDep, context) else {
+        collector.failed = true
+        return
+      }
+      var walker = LifetimeDependentUseWalker(value.parentFunction, localReachabilityCache, context) {
+        if let shrinkable, let destroy = $0 as? DestroyValueInst,
+           shrinkable.contains(ObjectIdentifier(destroy.destroyedValue)) {
+          visit(destroy.destroyedValue)
+        } else {
+          collector.instructions.append($0)
+        }
+        return .continueWalk
+      }
+      defer { walker.deinitialize() }
+      if walker.walkDown(dependence: dependence) == .abortWalk {
+        collector.failed = true
+      }
+    }
+  }
+  visit(variable)
+  return collector.failed ? nil : collector.instructions
+}
+
+/// Replace the destroys of `mv` with destroys at the boundary of its other uses.
+private func shrinkToLastUse(_ mv: MoveValueInst,
+                             _ localReachabilityCache: LocalVariableReachabilityCache,
+                             _ context: FunctionPassContext) {
+  var range = InstructionRange(for: mv, context)
+  defer { range.deinitialize() }
+  var walker = InteriorUseWalker(definingValue: mv, ignoreEscape: false, visitInnerUses: true, context) {
+    if $0.value == mv && $0.instruction is DestroyValueInst {
+      return .continueWalk
+    }
+    range.insert($0.instruction)
+    return .continueWalk
+  }
+  defer { walker.deinitialize() }
+  guard walker.visitUses() == .continueWalk, case .nonescaping = walker.pointerStatus else {
+    return
+  }
+  // Values with a dependence on the variable must not outlive it. Dependent variables were shrunk first, so their
+  // destroys are already at their final place.
+  guard let dependent = dependentUses(of: mv, substituting: nil, localReachabilityCache, context) else {
+    return
+  }
+  for inst in dependent where inst != mv {
+    range.insert(inst)
+  }
+  let destroys = Array(mv.uses.endingLifetime.map { $0.instruction })
+  // A variable with no other use ends right after its definition.
+  var ends = Array(range.ends)
+  if ends.isEmpty && range.exits.isEmpty {
+    ends = [mv]
+  }
+  // Nothing to do if every destroy already directly follows a last use.
+  if range.exits.isEmpty && ends.count == destroys.count &&
+     destroys.allSatisfy({ d in ends.contains { $0.next == d } }) {
+    return
+  }
+  for end in ends {
+    // A dependent use that leaves the function (a returned dependence) keeps the variable to the end; a terminator
+    // with a critical successor has no place for the destroy.
+    if end is TermInst &&
+       (end.parentBlock.successors.isEmpty || end.parentBlock.successors.contains(where: { !$0.hasSinglePredecessor })) {
+      return
+    }
+  }
+  for end in ends {
+    Builder.insert(after: end, location: end.location.asAutoGenerated, context) {
+      $0.createDestroyValue(operand: mv)
+    }
+  }
+  for exit in range.exits {
+    Builder(before: exit, location: exit.location.asAutoGenerated, context).createDestroyValue(operand: mv)
+  }
+  for d in destroys {
+    context.erase(instruction: d)
   }
 }
 
@@ -326,6 +541,10 @@ private struct ScopeExtension {
 
   // Does scope extension potentially invalidate stack nesting?
   var mustFixStackNesting = false
+
+  /// For the destroy of a variable that is moved to its last use afterwards: the instructions to cover instead of the
+  /// destroy, or nil if it is not such a variable.
+  var ignoredDestroyUses: ((DestroyValueInst) -> [Instruction]?)? = nil
 
   // Scopes listed in RPO over an upward walk. The outermost scope is first.
   var scopes = SingleInlineArray<ExtendableScope>()
@@ -775,7 +994,15 @@ extension ScopeExtension {
     var inRangeUses = [Instruction]()
     do {
       // The innermost scope that must be extended must dominate all uses.
+      let ignoredDestroyUses = self.ignoredDestroyUses
       var walker = LifetimeDependentUseWalker(function, localReachabilityCache, context) {
+        // The destroy of a variable that will end at its last use does not need the scope; its definition and the
+        // uses of what depends on it do.
+        if let ignoredDestroyUses, let destroy = $0 as? DestroyValueInst,
+           let instead = ignoredDestroyUses(destroy) {
+          inRangeUses.append(contentsOf: instead)
+          return .continueWalk
+        }
         inRangeUses.append($0)
         return .continueWalk
       }

@@ -43,8 +43,8 @@ sil @_overrideLifetimeBorrowing : $@convention(thin) <τ_0_0, τ_0_1 where τ_0_
 // CHECK:   [[MV:%.*]] = move_value [var_decl] %0
 // CHECK:   [[ACCESS:%.*]] = begin_access [modify] [static] [[ALLOC]]
 // CHECK:   apply %{{.*}}([[MV]], [[ACCESS]]) : $@convention(c) (NE, @lifetime(copy 0) @inout NE) -> ()
-// CHECK:   end_access [[ACCESS]]
 // CHECK:   destroy_value [[MV]]
+// CHECK:   end_access [[ACCESS]]
 // CHECK:   destroy_addr [[ALLOC]]
 // CHECK-LABEL: } // end sil function 'copyToLocal'
 sil [ossa] @copyToLocal : $@convention(thin) (@owned NE) -> () {
@@ -82,8 +82,8 @@ bb0(%0 : @owned $NE):
 // CHECK:   debug_value [[MV]], let, name "v2"
 // CHECK:   [[ACCESS:%.*]] = begin_access [modify] [static] [[V1]]
 // CHECK:   apply %{{.*}}([[MV]], [[ACCESS]]) : $@convention(c) (NE, @lifetime(copy 0) @inout NE) -> ()
-// CHECK:   end_access [[ACCESS]]
 // CHECK:   destroy_value [[MV]]
+// CHECK:   end_access [[ACCESS]]
 // CHECK:   destroy_addr [[V1]]
 // CHECK-LABEL: } // end sil function 'testInoutReassign'
 sil [ossa] @testInoutReassign : $@convention(thin) () -> () {
